@@ -1,7 +1,7 @@
 import re
 from typing import List
 
-from cross_references_predictor.use_cases.methods.base import ReferenceExtractionMethod
+from cross_references_predictor.use_cases.methods.reference_extraction_method_base import ReferenceExtractionMethod
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.reference_type import ReferenceType
 

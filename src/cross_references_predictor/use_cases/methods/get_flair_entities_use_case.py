@@ -1,6 +1,6 @@
 from pathlib import Path
 from flair.nn import Classifier
-from cross_references_predictor.use_cases.methods.base import ReferenceExtractionMethod
+from cross_references_predictor.use_cases.methods.reference_extraction_method_base import ReferenceExtractionMethod
 from cross_references_predictor.configuration import MODELS_PATH
 from cross_references_predictor.domain.reference import Reference
 from flair.data import Sentence, Span

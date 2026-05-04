@@ -6,7 +6,7 @@ from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.ports.pdf_to_segments_repository import PDFToSegmentsRepository
 
 
-class GetPositionsUseCase:
+class GetWordsPositionsUseCase:
     def __init__(self, pdf_to_segments_repository: PDFToSegmentsRepository, pdf_path: Path):
         self.pdf_to_segments_repository = pdf_to_segments_repository
         self.pdf_words = self.pdf_to_segments_repository.get_word_positions(pdf_path)
