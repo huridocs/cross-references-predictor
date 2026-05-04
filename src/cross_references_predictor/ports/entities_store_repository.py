@@ -1,0 +1,31 @@
+from abc import abstractmethod, ABC
+
+from cross_references_predictor.domain.reference import Reference
+from cross_references_predictor.domain.segment import Segment
+
+
+class EntitiesStoreRepository(ABC):
+
+    @abstractmethod
+    def get_references(self) -> list[Reference]:
+        pass
+
+    @abstractmethod
+    def save_references(self, references: list[Reference]) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_database(self):
+        pass
+
+    @abstractmethod
+    def save_segments(self, segments: list[Segment]) -> bool:
+        pass
+
+    @abstractmethod
+    def get_segments(self, identifier: str) -> list[Segment]:
+        pass
+
+    @abstractmethod
+    def get_identifiers(self) -> list[str]:
+        pass
