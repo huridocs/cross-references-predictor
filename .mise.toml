@@ -1,0 +1,14 @@
+[tools]
+python = "3.14.4"
+just = "1.50.0"
+uv = "0.11.8"
+
+[env]
+_.path = [".venv/bin"]
+
+[hooks]
+postinstall = '''
+if [ ! -d ".venv" ]; then
+    just install_venv
+fi
+'''
