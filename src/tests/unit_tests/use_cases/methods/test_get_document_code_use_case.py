@@ -1,5 +1,4 @@
 from unittest import TestCase
-import re
 from cross_references_predictor.use_cases.methods.get_document_code_use_case import GetDocumentCodeUseCase
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.reference_type import ReferenceType

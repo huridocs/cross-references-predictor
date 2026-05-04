@@ -99,7 +99,8 @@ class ReferenceDestination(BaseModel):
         return fuzz.ratio(text, other_text) >= threshold
 
     def belongs_to_destination(self, reference: Reference) -> bool:
-        # Use similarity logic for PERSON, LOCATION, ORGANIZATION
+        if self.type != reference.type:
+            return False
         if self.type in [ReferenceType.PERSON, ReferenceType.LOCATION, ReferenceType.ORGANIZATION]:
             return self.is_similar_entity(reference)
         return self.is_exact_match(reference)

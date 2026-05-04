@@ -50,7 +50,7 @@ class ReferenceDestinationUseCase:
 
     def _try_assign_to_prior_group(self, named_entity: Reference) -> bool:
         for prior_group in self.prior_groups.values():
-            if prior_group.belongs_to_group(named_entity):
+            if prior_group.belongs_to_destination(named_entity):
                 named_entity.group_name = prior_group.name
                 prior_group.references = [named_entity]
                 prior_group.top_relevance_entity = self._determine_top_relevance_entity(
@@ -63,7 +63,7 @@ class ReferenceDestinationUseCase:
 
     def _try_assign_to_existing_group(self, named_entity: Reference) -> bool:
         for group in self.groups.values():
-            if group.belongs_to_group(named_entity):
+            if group.belongs_to_destination(named_entity):
                 self._assign_to_existing_group(named_entity, group)
                 return True
         return False

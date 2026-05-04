@@ -7,6 +7,12 @@ MODELS_PATH = Path(ROOT_PATH, "models")
 DATA_PATH = Path(ROOT_PATH, "data")
 TITLES_TYPES = ["title", "section header"]
 SEPARATOR = " ||| "
-PDF_ANALYSIS_SERVICE_URL = "http://pdf-layout-analysis:5060"
+PDF_ANALYSIS_SERVICE_URL = os.getenv("PDF_ANALYSIS_SERVICE_URL", "http://pdf-layout-analysis:5060")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:120b-cloud")
+
+if __name__ == "__main__":
+    print(f"SRC_PATH: {SRC_PATH}")
+    print(f"ROOT_PATH: {ROOT_PATH}")
+    print(f"MODELS_PATH: {MODELS_PATH}")
+    print(f"DATA_PATH: {DATA_PATH}")

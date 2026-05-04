@@ -91,7 +91,7 @@ class Reference(BaseModel):
             self.relevance_percentage = 100 if str(self.segment_type).lower() in TITLES_TYPES else 0
             return self
 
-        self.relevance_percentage += int(10 * self.percentage_to_segment_text / 100)
+        self.relevance_percentage = int(10 * self.percentage_to_segment_text / 100)
         if self.first_type_appearance:
             self.relevance_percentage += 15
         if self.last_type_appearance:
@@ -106,14 +106,11 @@ class Reference(BaseModel):
         return self
 
     def set_score_parameters(self, references):
-        # Set appearance_count
         self.appearance_count = sum(1 for ne in references if ne.type == self.type and ne.text == self.text)
-        # Set percentage_to_segment_text
         if self.segment and hasattr(self.segment, "text") and self.segment.text:
             self.percentage_to_segment_text = int(100 * len(self.text) / len(self.segment.text))
         else:
             self.percentage_to_segment_text = 0
-        # Set first_type_appearance and last_type_appearance
         same_type_entities = [ne for ne in references if ne.type == self.type]
         if same_type_entities:
             self.first_type_appearance = same_type_entities[0].text == self.text
