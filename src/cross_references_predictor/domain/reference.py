@@ -91,6 +91,9 @@ class Reference(BaseModel):
             self.relevance_percentage = 100 if str(self.segment_type).lower() in TITLES_TYPES else 0
             return self
 
+        if not self.segment or not self.segment.text:
+            return self
+
         self.relevance_percentage = int(10 * self.percentage_to_segment_text / 100)
         if self.first_type_appearance:
             self.relevance_percentage += 15
