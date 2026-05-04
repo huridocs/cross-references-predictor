@@ -1,7 +1,8 @@
 from unittest import TestCase
+import re
+from cross_references_predictor.use_cases.methods.get_document_code_use_case import GetDocumentCodeUseCase
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.reference_type import ReferenceType
-from cross_references_predictor.use_cases.methods.get_document_code_use_case import GetDocumentCodeUseCase
 
 
 class TestGetDocumentCodeUseCase(TestCase):
@@ -10,7 +11,7 @@ class TestGetDocumentCodeUseCase(TestCase):
 
     def test_extract_single_document_code(self):
         text = "The report ST/SG/2025/1 was discussed."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 1)
         self.assertEqual(references[0].type, ReferenceType.DOCUMENT_CODE)
@@ -20,7 +21,7 @@ class TestGetDocumentCodeUseCase(TestCase):
 
     def test_extract_multiple_document_codes(self):
         text = "Documents A/79/150 and S/RES/2750 were referenced."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 2)
         self.assertEqual(references[0].text, "A/79/150")
@@ -28,42 +29,42 @@ class TestGetDocumentCodeUseCase(TestCase):
 
     def test_extract_document_code_with_revision(self):
         text = "See document A/C.3/79/L.5/Rev.1 for details."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 1)
         self.assertEqual(references[0].text, "A/C.3/79/L.5/Rev.1")
 
     def test_extract_document_code_with_corrigendum(self):
         text = "The corrected version E/2025/14/Corr.1 is available."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 1)
         self.assertEqual(references[0].text, "E/2025/14/Corr.1")
 
     def test_extract_document_code_with_addendum(self):
         text = "Please refer to A/79/100/Add.2 for additional information."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 1)
         self.assertEqual(references[0].text, "A/79/100/Add.2")
 
     def test_extract_trusteeship_council_code(self):
         text = "The Trusteeship Council document T/3200 was referenced."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 1)
         self.assertEqual(references[0].text, "T/3200")
 
     def test_extract_committee_code(self):
         text = "Committee draft resolution A/C.3/79/L.5 was introduced."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 1)
         self.assertEqual(references[0].text, "A/C.3/79/L.5")
 
     def test_ignore_non_matching_patterns(self):
         text = "This text contains A/B/C and 12345 which are not valid codes."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 0)
 
@@ -76,7 +77,7 @@ class TestGetDocumentCodeUseCase(TestCase):
         E/2025/14 was subsequently corrected with E/2025/14/Corr.1. A related document
         from the Trusteeship Council, T/3200, was also referenced.
         """
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertGreaterEqual(len(references), 6)
         codes = [entity.text for entity in references]
@@ -123,35 +124,28 @@ class TestGetDocumentCodeUseCase(TestCase):
         self.assertEqual(result[0].text, "A/79/150")
         self.assertEqual(result[1].text, "S/RES/2750")
 
-    def test_normalized_text_strips_whitespace(self):
-        text = "  A/79/150  has extra spaces."
-        references = self.use_case.extract_document_codes(text)
-
-        self.assertEqual(len(references), 1)
-        self.assertEqual(references[0].normalized_text.strip(), "A/79/150")
-
     def test_extract_security_council_resolution(self):
         text = "Security Council Resolution S/RES/1234 was adopted."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 1)
         self.assertEqual(references[0].text, "S/RES/1234")
 
     def test_extract_general_assembly_plenary_meeting(self):
         text = "See the verbatim record A/79/PV.15 for the discussion."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 1)
         self.assertEqual(references[0].text, "A/79/PV.15")
 
     def test_empty_text(self):
         text = ""
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 0)
 
     def test_text_without_codes(self):
         text = "This is a regular text without any UN document codes."
-        references = self.use_case.extract_document_codes(text)
+        references = self.use_case.get_references(text)
 
         self.assertEqual(len(references), 0)

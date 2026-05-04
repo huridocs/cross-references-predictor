@@ -9,7 +9,7 @@ class Segment(BaseModel):
     segment_number: int
     type: str = "Text"
     source_id: str = ""
-    bounding_box: Rectangle
+    bounding_box: Rectangle = Rectangle.from_width_height(left=0, top=0, width=0, height=0)
     page_width: int = 0
     page_height: int = 0
 

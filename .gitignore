@@ -217,6 +217,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-data/
+/data/
 .mise.local.toml
-models/
+/models/
