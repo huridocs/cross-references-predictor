@@ -6,13 +6,13 @@ from cross_references_predictor.ports.entities_store_repository import EntitiesS
 import os
 
 
-class PostgresEntitiesStoreRepository(EntitiesStoreRepository):
+class PostgresReferencesStoreRepository(EntitiesStoreRepository):
     def __init__(self, schema_name: str = "public", language: str = "en"):
         self.language = language
         self.schema_name = f"{schema_name}_{language}"
         self.host = os.environ.get("POSTGRES_HOST", "postgres")
         self.port = os.environ.get("POSTGRES_PORT", "5432")
-        self.dbname = os.environ.get("POSTGRES_DB", "ner_db")
+        self.dbname = os.environ.get("POSTGRES_DB", "references_db")
         self.user = os.environ.get("POSTGRES_USER", "postgres")
         self.password = os.environ.get("POSTGRES_PASSWORD", "postgres")
 
@@ -46,7 +46,7 @@ class PostgresEntitiesStoreRepository(EntitiesStoreRepository):
         cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {self.schema_name}")
 
         cursor.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.schema_name}.reference_groups (
+            CREATE TABLE IF NOT EXISTS {self.schema_name}.reference_destination (
                 id SERIAL PRIMARY KEY,
                 name TEXT UNIQUE NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -76,7 +76,7 @@ class PostgresEntitiesStoreRepository(EntitiesStoreRepository):
                 normalized_text TEXT,
                 character_start INTEGER,
                 character_end INTEGER,
-                group_id INTEGER REFERENCES {self.schema_name}.reference_groups(id),
+                group_id INTEGER REFERENCES {self.schema_name}.reference_destination(id),
                 segment_id INTEGER REFERENCES {self.schema_name}.segments(id),
                 appearance_count INTEGER,
                 percentage_to_segment_text INTEGER,
@@ -345,7 +345,7 @@ class PostgresEntitiesStoreRepository(EntitiesStoreRepository):
             connection, cursor = self.get_connection()
 
             cursor.execute(
-                f"SELECT id FROM {self.schema_name}.reference_groups WHERE name = %s",
+                f"SELECT id FROM {self.schema_name}.reference_destination WHERE name = %s",
                 (to_text,),
             )
             row = cursor.fetchone()
@@ -354,7 +354,7 @@ class PostgresEntitiesStoreRepository(EntitiesStoreRepository):
             else:
                 cursor.execute(
                     f"""
-                    INSERT INTO {self.schema_name}.reference_groups (name)
+                    INSERT INTO {self.schema_name}.reference_destination (name)
                     VALUES (%s)
                     RETURNING id
                     """,
@@ -399,18 +399,18 @@ class PostgresEntitiesStoreRepository(EntitiesStoreRepository):
 
         try:
             connection, cursor = self.get_connection()
-            cursor.execute(f"SELECT id, name FROM {self.schema_name}.reference_groups ORDER BY id")
+            cursor.execute(f"SELECT id, name FROM {self.schema_name}.reference_destination ORDER BY id")
             destinations = cursor.fetchall()
 
             groups = []
-            from cross_references_predictor.domain.reference_group import ReferenceGroup
+            from cross_references_predictor.domain.reference_destination import ReferenceDestination
             from cross_references_predictor.domain.reference import Reference
             from cross_references_predictor.domain.reference_type import ReferenceType
             from pdf_features import Rectangle
             from cross_references_predictor.domain.segment import Segment
 
             for dest_id, dest_name in destinations:
-                group = ReferenceGroup(
+                destination = ReferenceDestination(
                     type=ReferenceType.REFERENCE,
                     name=dest_name,
                     segment=None,
@@ -472,9 +472,9 @@ class PostgresEntitiesStoreRepository(EntitiesStoreRepository):
                     entity = Reference(type=ReferenceType.REFERENCE, text=ref_text, segment=segment)
                     entity_dict = entity.model_dump()
                     entity_dict["id"] = ref_id
-                    group.references.append(entity_dict)
+                    destination.references.append(entity_dict)
 
-                groups.append(group.model_dump())
+                groups.append(destination.model_dump())
 
             connection.close()
             return groups
@@ -493,7 +493,7 @@ class PostgresEntitiesStoreRepository(EntitiesStoreRepository):
                 (reference_id,),
             )
             cursor.execute(f"""
-                DELETE FROM {self.schema_name}.reference_groups
+                DELETE FROM {self.schema_name}.reference_destination
                 WHERE id NOT IN (SELECT DISTINCT group_id FROM {self.schema_name}.references WHERE type = 'Reference' AND group_id IS NOT NULL)
             """)
             connection.commit()

@@ -1,9 +1,11 @@
+from pathlib import Path
+
 import math
 from os import makedirs
 from os.path import join, exists
 from huggingface_hub import snapshot_download
 
-from cross_references_predictor.configuration import MODELS_PATH
+MODELS_PATH = Path(__file__).parent.parent / "models"
 
 
 def download_progress(count, block_size, total_size):

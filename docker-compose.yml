@@ -1,0 +1,62 @@
+services:
+  cross-references-predictor:
+    container_name: cross-references-predictor
+    entrypoint: [ "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--chdir", "./src", "cross_references_predictor.drivers.rest.app:app", "--bind", "0.0.0.0:5070", "--timeout", "10000"]
+    init: true
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=ner_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    networks:
+      - network-cross-references-predictor
+    ports:
+      - "5070:5070"
+    depends_on:
+      - postgres
+
+  pdf-layout-analysis:
+    container_name: "pdf-layout-analysis"
+    image: ghcr.io/huridocs/pdf-document-layout-analysis:0.0.32
+    init: true
+    restart: unless-stopped
+    networks:
+      - network-cross-references-predictor
+    ports:
+      - "5060:5060"
+
+  postgres:
+    container_name: postgres
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: references_db
+    ports:
+      - "5432:5432"
+    networks:
+      - network-cross-references-predictor
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  adminer:
+    container_name: adminer
+    image: adminer:4
+    restart: unless-stopped
+    networks:
+      - network-cross-references-predictor
+    ports:
+      - "8080:8080"
+
+networks:
+  network-cross-references-predictor:
+    driver: bridge
+
+volumes:
+  postgres_data:

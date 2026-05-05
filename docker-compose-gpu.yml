@@ -1,0 +1,41 @@
+services:
+  cross-references-predictor-gpu:
+    extends:
+      file: docker-compose.yml
+      service: cross-references-predictor
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+  pdf-layout-analysis-gpu:
+    extends:
+      file: docker-compose.yml
+      service: pdf-layout-analysis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+  postgres:
+    extends:
+      file: docker-compose.yml
+      service: postgres
+
+  adminer:
+    extends:
+      file: docker-compose.yml
+      service: adminer
+
+networks:
+  network-cross-references-predictor:
+    driver: bridge
+
+volumes:
+  postgres_data:

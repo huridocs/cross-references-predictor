@@ -1,0 +1,4 @@
+/venv/
+/.venv/
+.git
+/data/conll-2012
