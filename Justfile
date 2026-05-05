@@ -29,22 +29,20 @@ download_models:
 start:
 	#!/usr/bin/env bash
 	mkdir -p ./models
-	mkdir -p ./data
 	if [ "{{HAS_GPU}}" = "1" ]; then
-		echo "NVIDIA GPU detected, using docker-compose-gpu.yml"
-		docker compose -f docker-compose-gpu.yml up --build
+		echo "NVIDIA GPU detected, using GPU support"
+		docker compose up --build
 	else
-		echo "No NVIDIA GPU detected, using docker-compose.yml"
-		docker compose -f docker-compose.yml up --attach ner --attach ner-ui --build
+		echo "No NVIDIA GPU detected"
+		docker compose up --build
 	fi
 
 start_no_gpu:
-	mkdir -p ./data
 	mkdir -p ./models
 	docker compose up --build
 
 stop:
-	docker compose stop ; docker compose -f docker-compose-gpu.yml stop
+	docker compose stop
 
 test:
 	. .venv/bin/activate; command cd src; command python -m pytest
@@ -84,9 +82,16 @@ free_up_space:
     df -h
 
 start_detached:
+	#!/usr/bin/env bash
 	mkdir -p ./models
 	mkdir -p ./data
-	docker compose up --build -d
+	if [ "{{HAS_GPU}}" = "1" ]; then
+		echo "NVIDIA GPU detected, using GPU support"
+		docker compose up --build -d
+	else
+		echo "No NVIDIA GPU detected"
+		docker compose up --build -d
+	fi
 
 upgrade:
 	. .venv/bin/activate; pip-upgrade
