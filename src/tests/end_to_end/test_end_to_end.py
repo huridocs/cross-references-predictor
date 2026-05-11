@@ -217,36 +217,52 @@ class TestEndToEnd(TestCase):
                 self.assertIn("entities_text", dest)
                 self.assertEqual(expected["entities_text"], dest["entities_text"])
 
-    def test_is_processed_endpoint(self):
-        namespace = "test_is_processed_namespace"
-        identifier_1 = "test_identifier_123"
-        identifier_2 = "test_identifier_456"
+    def test_extraction_does_not_save_to_database(self):
+        namespace = "test_no_save_namespace"
+        identifier = "test_identifier_no_save"
+        text = "Document with Tokyo and Maria Rodriguez"
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
 
-        result = requests.post(self.service_url + "/is_processed", data={"namespace": namespace, "identifier": identifier_1})
+        result = requests.post(self.service_url + "/is_processed", data={"namespace": namespace, "identifier": identifier})
         self.assertEqual(200, result.status_code)
         self.assertFalse(result.json())
 
-        text = "Test document with Tokyo and Maria Rodriguez"
-        data = {"text": text, "namespace": namespace, "identifier": identifier_1}
+        data = {"text": text, "namespace": namespace, "identifier": identifier}
+        result = requests.post(self.service_url, data=data)
+        self.assertEqual(200, result.status_code)
+        self.assertIn("references", result.json())
+        self.assertIn("destinations", result.json())
+
+        result = requests.post(self.service_url + "/is_processed", data={"namespace": namespace, "identifier": identifier})
+        self.assertEqual(200, result.status_code)
+        self.assertFalse(result.json())
+
+        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
+
+    def test_new_destinations_with_prior_references(self):
+        namespace = "test_new_destinations_namespace"
+        identifier_1 = "test_identifier_prior_1"
+        identifier_2 = "test_identifier_prior_2"
+
+        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
+
+        text_1 = "Document about Tokyo and Maria Rodriguez"
+        requests.post(
+            self.service_url + "/save_text", data={"text": text_1, "namespace": namespace, "identifier": identifier_1}
+        )
+
+        text_2 = "Document about Paris and John Smith"
+        data = {"text": text_2, "namespace": namespace, "identifier": identifier_2}
         result = requests.post(self.service_url, data=data)
         self.assertEqual(200, result.status_code)
 
-        result = requests.post(self.service_url + "/is_processed", data={"namespace": namespace, "identifier": identifier_1})
-        self.assertEqual(200, result.status_code)
-        self.assertTrue(result.json())
+        destinations = result.json()["destinations"]
+        destination_names = [d["name"] for d in destinations]
 
-        result = requests.post(self.service_url + "/is_processed", data={"namespace": namespace, "identifier": identifier_2})
-        self.assertEqual(200, result.status_code)
-        self.assertFalse(result.json())
-
-        result = requests.post(self.service_url + "/is_processed", data={"namespace": namespace})
-        self.assertEqual(200, result.status_code)
-        self.assertFalse(result.json())
-
-        result = requests.post(self.service_url + "/is_processed", data={"identifier": identifier_1})
-        self.assertEqual(200, result.status_code)
-        self.assertFalse(result.json())
+        self.assertIn("Paris", destination_names)
+        self.assertIn("John Smith", destination_names)
+        self.assertNotIn("Tokyo", destination_names)
+        self.assertNotIn("Maria Rodriguez", destination_names)
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})

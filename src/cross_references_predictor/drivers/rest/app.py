@@ -3,6 +3,7 @@ import tempfile
 import uuid
 from pathlib import Path
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException
+from pydantic import BaseModel
 from starlette.responses import FileResponse
 
 from cross_references_predictor.adapters.pdf_layout_analysis_repository import PDFLayoutAnalysisRepository
@@ -30,6 +31,14 @@ try:
         logging.info(f"CUDA device: {torch.cuda.get_device_name(0)}")
 except ImportError:
     logging.info("PyTorch not installed")
+
+
+class SaveReferencesRequest(BaseModel):
+    namespace: str
+    language: str = "en"
+    references: list
+    identifier: str | None = None
+
 
 app = FastAPI()
 
@@ -72,12 +81,6 @@ async def get_cross_references(
         references = GetWordsPositionsUseCase(PDFLayoutAnalysisRepository(), pdf_path).add_positions(references)
 
     reference_destinations = ReferenceDestinationUseCase(references_from_db, language).group(references)
-
-    if namespace:
-        repository = PostgresReferencesStoreRepository(namespace, language)
-        repository.save_references(references)
-        if identifier:
-            repository.save_identifier(identifier)
 
     return CrossReferencesResponse.from_destinations(reference_destinations)
 
@@ -176,6 +179,22 @@ async def create_reference(
         return {"status": "success", "message": "Reference created successfully"}
     else:
         return {"status": "error", "message": "Failed to create reference"}
+
+
+@app.post("/save_references")
+@catch_exceptions
+async def save_references(request: SaveReferencesRequest):
+    from cross_references_predictor.domain.reference import Reference
+
+    parsed_references = [Reference(**ref) for ref in request.references]
+    store_repository = PostgresReferencesStoreRepository(request.namespace, request.language)
+    success = store_repository.save_references(parsed_references)
+    if request.identifier:
+        store_repository.save_identifier(request.identifier)
+    if success:
+        return {"status": "success", "message": f"Saved {len(parsed_references)} references"}
+    else:
+        return {"status": "error", "message": "Failed to save references"}, 400
 
 
 @app.get("/references")

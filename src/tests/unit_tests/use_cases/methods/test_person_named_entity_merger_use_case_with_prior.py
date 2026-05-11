@@ -27,5 +27,4 @@ class TestPersonReferenceMergerUseCaseWithPrior(TestCase):
 
         result = use_case.group(new_entity)
 
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].name, "John Doe")
+        self.assertEqual(len(result), 0)

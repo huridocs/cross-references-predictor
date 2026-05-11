@@ -18,6 +18,7 @@ logging.getLogger("country_converter").setLevel(logging.ERROR)
 
 
 class Reference(BaseModel):
+    id: int | None = None
     type: ReferenceType
     text: str
     normalized_text: str = ""

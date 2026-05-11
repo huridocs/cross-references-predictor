@@ -85,5 +85,4 @@ class TestReferenceDestinationUseCaseWithPrior(TestCase):
 
         result = use_case.group(new_entity)
 
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].name, "Section 1")
+        self.assertEqual(len(result), 0)

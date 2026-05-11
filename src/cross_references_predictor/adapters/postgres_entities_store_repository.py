@@ -126,6 +126,23 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
         connection.close()
         return entities
 
+    def _get_or_create_destination_id(self, cursor, destination_name: str) -> int | None:
+        if not destination_name:
+            return None
+        cursor.execute(
+            f"SELECT id FROM {self.schema_name}.reference_destination WHERE name = %s",
+            (destination_name,),
+        )
+        row = cursor.fetchone()
+        if row is not None:
+            return row[0]
+        cursor.execute(
+            f"INSERT INTO {self.schema_name}.reference_destination (name) VALUES (%s) RETURNING id",
+            (destination_name,),
+        )
+        result = cursor.fetchone()
+        return result[0] if result is not None else None
+
     def save_references(self, references: list[Reference]) -> bool:
         if not self.exists_schema():
             self.create_database()
@@ -143,6 +160,40 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
 
             for entity in references:
                 persistence = ReferencePersistence.from_reference(entity)
+                group_id = self._get_or_create_destination_id(cursor, persistence.group_name)
+
+                if entity.id is not None:
+                    cursor.execute(
+                        f"SELECT id FROM {self.schema_name}.references WHERE id = %s",
+                        (entity.id,),
+                    )
+                    existing = cursor.fetchone()
+                    if existing:
+                        cursor.execute(
+                            f"""
+                            UPDATE {self.schema_name}.references SET
+                                type = %s, text = %s, normalized_text = %s, character_start = %s,
+                                character_end = %s, appearance_count = %s, percentage_to_segment_text = %s,
+                                first_type_appearance = %s, last_type_appearance = %s, relevance_percentage = %s,
+                                group_id = %s
+                            WHERE id = %s
+                            """,
+                            (
+                                str(persistence.type),
+                                persistence.text,
+                                persistence.normalized_text,
+                                persistence.character_start,
+                                persistence.character_end,
+                                persistence.appearance_count,
+                                persistence.percentage_to_segment_text,
+                                persistence.first_type_appearance,
+                                persistence.last_type_appearance,
+                                persistence.relevance_percentage,
+                                group_id,
+                                entity.id,
+                            ),
+                        )
+                        continue
 
                 segment_id = None
                 if entity.segment and entity.segment.source_id:
@@ -168,7 +219,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                         persistence.normalized_text,
                         persistence.character_start,
                         persistence.character_end,
-                        None,
+                        group_id,
                         segment_id,
                         persistence.appearance_count,
                         persistence.percentage_to_segment_text,
@@ -389,7 +440,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    "Reference",
+                    "REFERENCE",
                     reference_text,
                     reference_text,
                     0,
@@ -439,7 +490,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                     SELECT ne.id, ne.text, s.text, s.page_number, s.segment_number, s.type, s.source_id, s.bounding_box_left, s.bounding_box_top, s.bounding_box_width, s.bounding_box_height
                     FROM {self.schema_name}.references ne
                     LEFT JOIN {self.schema_name}.segments s ON ne.segment_id = s.id
-                    WHERE ne.group_id = %s AND ne.type = 'Reference'
+                    WHERE ne.group_id = %s AND ne.type = 'REFERENCE'
                     ORDER BY ne.id
                     """,
                     (dest_id,),
@@ -506,12 +557,12 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
         try:
             connection, cursor = self.get_connection()
             cursor.execute(
-                f"DELETE FROM {self.schema_name}.references WHERE id = %s AND type = 'Reference'",
+                f"DELETE FROM {self.schema_name}.references WHERE id = %s AND type = 'REFERENCE'",
                 (reference_id,),
             )
             cursor.execute(f"""
                 DELETE FROM {self.schema_name}.reference_destination
-                WHERE id NOT IN (SELECT DISTINCT group_id FROM {self.schema_name}.references WHERE type = 'Reference' AND group_id IS NOT NULL)
+                WHERE id NOT IN (SELECT DISTINCT group_id FROM {self.schema_name}.references WHERE type = 'REFERENCE' AND group_id IS NOT NULL)
             """)
             connection.commit()
             connection.close()
@@ -536,7 +587,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                 FROM {self.schema_name}.references ne
                 LEFT JOIN {self.schema_name}.reference_destination rd ON ne.group_id = rd.id
                 LEFT JOIN {self.schema_name}.segments s ON ne.segment_id = s.id
-                WHERE ne.id = %s AND ne.type = 'Reference'
+                WHERE ne.id = %s AND ne.type = 'REFERENCE'
                 """,
                 (reference_id,),
             )
@@ -551,22 +602,22 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
             from cross_references_predictor.domain.segment import Segment
 
             segment = None
-            if row[13] is not None:
+            if row[14] is not None:
                 segment = Segment(
-                    id=row[13],
-                    text=row[14] or "",
-                    page_number=row[15] or 0,
-                    segment_number=row[16] or 0,
-                    type=row[17] or "Text",
-                    source_id=row[18] or "",
+                    id=row[14],
+                    text=row[15] or "",
+                    page_number=row[16] or 0,
+                    segment_number=row[17] or 0,
+                    type=row[18] or "Text",
+                    source_id=row[19] or "",
                     bounding_box=Rectangle.from_width_height(
-                        left=row[19] or 0,
-                        top=row[20] or 0,
-                        width=row[21] or 0,
-                        height=row[22] or 0,
+                        left=row[20] or 0,
+                        top=row[21] or 0,
+                        width=row[22] or 0,
+                        height=row[23] or 0,
                     ),
-                    page_width=row[23] or 0,
-                    page_height=row[24] or 0,
+                    page_width=row[24] or 0,
+                    page_height=row[25] or 0,
                 )
 
             return {
@@ -583,7 +634,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                 "first_type_appearance": row[10],
                 "last_type_appearance": row[11],
                 "relevance_percentage": row[12],
-                "destination_name": row[25],
+                "destination_name": row[13],
                 "segment": segment.to_dict() if segment else None,
             }
         except Exception as e:
@@ -622,7 +673,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                     f"""
                     UPDATE {self.schema_name}.references
                     SET text = %s, normalized_text = %s, group_id = %s
-                    WHERE id = %s AND type = 'Reference'
+                    WHERE id = %s AND type = 'REFERENCE'
                     """,
                     (reference_text, reference_text, group_id, reference_id),
                 )
@@ -631,19 +682,19 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                     f"""
                     UPDATE {self.schema_name}.references
                     SET text = %s, normalized_text = %s
-                    WHERE id = %s AND type = 'Reference'
+                    WHERE id = %s AND type = 'REFERENCE'
                     """,
                     (reference_text, reference_text, reference_id),
                 )
             elif group_id is not None:
                 cursor.execute(
-                    f"UPDATE {self.schema_name}.references SET group_id = %s WHERE id = %s AND type = 'Reference'",
+                    f"UPDATE {self.schema_name}.references SET group_id = %s WHERE id = %s AND type = 'REFERENCE'",
                     (group_id, reference_id),
                 )
 
             cursor.execute(f"""
                 DELETE FROM {self.schema_name}.reference_destination
-                WHERE id NOT IN (SELECT DISTINCT group_id FROM {self.schema_name}.references WHERE type = 'Reference' AND group_id IS NOT NULL)
+                WHERE id NOT IN (SELECT DISTINCT group_id FROM {self.schema_name}.references WHERE type = 'REFERENCE' AND group_id IS NOT NULL)
             """)
 
             connection.commit()

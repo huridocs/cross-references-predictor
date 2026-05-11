@@ -12,12 +12,24 @@ class TestReference(TestCase):
             text="A/79/150",
             character_start=0,
             character_end=8,
+            id=42,
         )
 
         self.assertEqual(reference.type, ReferenceType.DOCUMENT_CODE)
         self.assertEqual(reference.text, "A/79/150")
         self.assertEqual(reference.character_start, 0)
         self.assertEqual(reference.character_end, 8)
+        self.assertEqual(reference.id, 42)
+
+    def test_create_reference_without_id(self):
+        reference = Reference(
+            type=ReferenceType.DOCUMENT_CODE,
+            text="A/79/150",
+            character_start=0,
+            character_end=8,
+        )
+
+        self.assertIsNone(reference.id)
 
     def test_normalize_text(self):
         reference = Reference(

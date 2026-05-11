@@ -7,6 +7,7 @@ from cross_references_predictor.domain.segment import Segment
 
 
 class ReferencePersistence(BaseModel):
+    id: int | None = None
     group_name: str = ""
     type: ReferenceType
     text: str
@@ -44,6 +45,7 @@ class ReferencePersistence(BaseModel):
         )
 
         return Reference(
+            id=self.id,
             type=ReferenceType(self.type),
             text=self.text,
             normalized_text=self.normalized_text,
@@ -62,6 +64,7 @@ class ReferencePersistence(BaseModel):
     def from_row(row, columns: list[str]):
         col_map = {name: idx for idx, name in enumerate(columns)}
         return ReferencePersistence(
+            id=row[col_map["id"]],
             type=ReferenceType(row[col_map["type"]]),
             text=row[col_map["text"]],
             normalized_text=row[col_map["normalized_text"]],
@@ -88,12 +91,13 @@ class ReferencePersistence(BaseModel):
     def from_reference(reference: Reference) -> "ReferencePersistence":
         segment = reference.segment
         return ReferencePersistence(
+            id=reference.id,
             type=reference.type,
             text=reference.text,
             normalized_text=reference.normalized_text,
             character_start=reference.character_start,
             character_end=reference.character_end,
-            destination=reference.destination,
+            group_name=reference.destination,
             segment_text=segment.text if segment else None,
             segment_page_number=segment.page_number if segment else None,
             segment_segment_number=segment.segment_number if segment else None,

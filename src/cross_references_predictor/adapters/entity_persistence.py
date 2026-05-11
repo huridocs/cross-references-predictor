@@ -7,6 +7,7 @@ from cross_references_predictor.domain.segment import Segment
 
 
 class EntityPersistence(BaseModel):
+    id: int | None = None
     group_name: str = ""
     type: ReferenceType
     text: str
@@ -44,6 +45,7 @@ class EntityPersistence(BaseModel):
         )
 
         return Reference(
+            id=self.id,
             type=ReferenceType(self.type),
             text=self.text,
             normalized_text=self.normalized_text,

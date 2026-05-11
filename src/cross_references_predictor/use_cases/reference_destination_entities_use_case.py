@@ -10,6 +10,7 @@ class ReferenceDestinationUseCase:
         self.prior_groups: dict[str, ReferenceDestination] = dict()
         self._initialize_prior_groups()
         self.groups: dict[str, ReferenceDestination] = dict()
+        self._prior_group_names: set[str] = set(self.prior_groups.keys())
 
     def _initialize_prior_groups(self):
         sorted_prior_entities = sorted(self.prior_references, key=lambda x: x.relevance_percentage, reverse=True)
@@ -19,12 +20,13 @@ class ReferenceDestinationUseCase:
                 self.prior_groups[group_name].references.append(prior_entity)
                 continue
 
-            self.prior_groups[group_name] = ReferenceDestination(
+            group = ReferenceDestination(
                 type=prior_entity.type,
                 name=prior_entity.destination,
                 references=[prior_entity],
                 top_relevance_entity=prior_entity,
             )
+            self.prior_groups[group_name] = group
 
     def group(self, references: list[Reference]) -> list[ReferenceDestination]:
         self._calculate_relevance_scores(references)
@@ -41,7 +43,14 @@ class ReferenceDestinationUseCase:
             self._create_new_group_for_entity(normalized_entity)
 
         self._remove_empty_references_groups()
-        return list(self.groups.values())
+        return self._get_new_destinations()
+
+    def _get_new_destinations(self) -> list[ReferenceDestination]:
+        new_destinations = []
+        for name, destination in self.groups.items():
+            if name not in self._prior_group_names:
+                new_destinations.append(destination)
+        return new_destinations
 
     @staticmethod
     def _calculate_relevance_scores(references: list[Reference]):
@@ -56,8 +65,8 @@ class ReferenceDestinationUseCase:
                 prior_group.top_relevance_entity = self._determine_top_relevance_entity(
                     prior_group.top_relevance_entity, named_entity
                 )
-                del self.prior_groups[prior_group.name]
                 self.groups[prior_group.name] = prior_group
+                del self.prior_groups[prior_group.name]
                 return True
         return False
 
