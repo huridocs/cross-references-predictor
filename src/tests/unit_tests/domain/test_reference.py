@@ -55,7 +55,7 @@ class TestReference(TestCase):
         result = Reference.from_segment(reference, segment, "Section 1")
 
         self.assertEqual(result.segment, segment)
-        self.assertEqual(result.group_name, "Section 1")
+        self.assertEqual(result.destination, "Section 1")
 
     def test_has_iso_code_true_for_valid_location(self):
         reference = Reference(

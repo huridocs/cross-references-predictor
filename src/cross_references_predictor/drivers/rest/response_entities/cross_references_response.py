@@ -10,7 +10,7 @@ class CrossReferencesResponse(BaseModel):
     destinations: list
 
     @staticmethod
-    def from_groups(destinations: list[ReferenceDestination]) -> "CrossReferencesResponse":
+    def from_destinations(destinations: list[ReferenceDestination]) -> "CrossReferencesResponse":
         all_references = []
         destinations_list = []
 

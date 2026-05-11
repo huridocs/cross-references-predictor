@@ -1,0 +1,282 @@
+[
+  {
+    "name": "the Louvre Museum",
+    "type": "ORGANIZATION",
+    "source_id": "",
+    "references": [
+      {
+        "index": 0,
+        "text": "the Louvre Museum"
+      }
+    ],
+    "top_relevance_entity": {
+      "character_end": 41,
+      "character_start": 24,
+      "group_name": "the Louvre Museum",
+      "relevance_percentage": 31,
+      "segment": {
+        "bounding_box": {
+          "height": 34,
+          "left": 72,
+          "top": 74,
+          "width": 429
+        },
+        "character_end": 41,
+        "character_start": 24,
+        "page_number": 1,
+        "pdf_name": "test_document.pdf",
+        "segment_number": 1,
+        "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+      },
+      "source_id": "test_document.pdf",
+      "text": "the Louvre Museum",
+      "type": "ORGANIZATION"
+    }
+  },
+  {
+    "name": "Paris",
+    "type": "LOCATION",
+    "source_id": "",
+    "references": [
+      {
+        "index": 0,
+        "text": "Paris"
+      }
+    ],
+    "top_relevance_entity": {
+      "character_end": 50,
+      "character_start": 45,
+      "group_name": "Paris",
+      "relevance_percentage": 30,
+      "segment": {
+        "bounding_box": {
+          "height": 34,
+          "left": 72,
+          "top": 74,
+          "width": 429
+        },
+        "character_end": 50,
+        "character_start": 45,
+        "page_number": 1,
+        "pdf_name": "test_document.pdf",
+        "segment_number": 1,
+        "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+      },
+      "source_id": "test_document.pdf",
+      "text": "Paris",
+      "type": "LOCATION"
+    }
+  },
+  {
+    "name": "France",
+    "type": "LOCATION",
+    "source_id": "",
+    "references": [
+      {
+        "index": 0,
+        "text": "France"
+      }
+    ],
+    "top_relevance_entity": {
+      "character_end": 58,
+      "character_start": 52,
+      "group_name": "France",
+      "relevance_percentage": 30,
+      "segment": {
+        "bounding_box": {
+          "height": 34,
+          "left": 72,
+          "top": 74,
+          "width": 429
+        },
+        "character_end": 58,
+        "character_start": 52,
+        "page_number": 1,
+        "pdf_name": "test_document.pdf",
+        "segment_number": 1,
+        "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+      },
+      "source_id": "test_document.pdf",
+      "text": "France",
+      "type": "LOCATION"
+    }
+  },
+  {
+    "name": "2023-07-12",
+    "type": "DATE",
+    "source_id": "",
+    "references": [
+      {
+        "index": 0,
+        "text": "July 12, 2023"
+      }
+    ],
+    "top_relevance_entity": {
+      "character_end": 87,
+      "character_start": 74,
+      "group_name": "2023-07-12",
+      "relevance_percentage": 46,
+      "segment": {
+        "bounding_box": {
+          "height": 34,
+          "left": 72,
+          "top": 74,
+          "width": 429
+        },
+        "character_end": 87,
+        "character_start": 74,
+        "page_number": 1,
+        "pdf_name": "test_document.pdf",
+        "segment_number": 1,
+        "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+      },
+      "source_id": "test_document.pdf",
+      "text": "July 12, 2023",
+      "type": "DATE"
+    }
+  },
+  {
+    "name": "Maria Diaz Rodriguez",
+    "type": "PERSON",
+    "source_id": "",
+    "references": [
+      {
+        "index": 0,
+        "text": "Maria Rodriguez"
+      },
+      {
+        "index": 1,
+        "text": "Maria Diaz Rodriguez"
+      },
+      {
+        "index": 2,
+        "text": "M.D. Rodriguez"
+      }
+    ],
+    "top_relevance_entity": {
+      "character_end": 40,
+      "character_start": 26,
+      "group_name": "Maria Diaz Rodriguez",
+      "relevance_percentage": 33,
+      "segment": {
+        "bounding_box": {
+          "height": 14,
+          "left": 72,
+          "top": 213,
+          "width": 269
+        },
+        "character_end": 40,
+        "character_start": 26,
+        "page_number": 1,
+        "pdf_name": "test_document.pdf",
+        "segment_number": 3,
+        "text": "It can also be written as M.D. Rodriguez."
+      },
+      "source_id": "test_document.pdf",
+      "text": "M.D. Rodriguez",
+      "type": "PERSON"
+    }
+  },
+  {
+    "name": "HURIDOCS",
+    "type": "ORGANIZATION",
+    "source_id": "",
+    "references": [
+      {
+        "index": 0,
+        "text": "HURIDOCS"
+      }
+    ],
+    "top_relevance_entity": {
+      "character_end": 49,
+      "character_start": 41,
+      "group_name": "HURIDOCS",
+      "relevance_percentage": 16,
+      "segment": {
+        "bounding_box": {
+          "height": 15,
+          "left": 72,
+          "top": 292,
+          "width": 352
+        },
+        "character_end": 49,
+        "character_start": 41,
+        "page_number": 1,
+        "pdf_name": "test_document.pdf",
+        "segment_number": 4,
+        "text": "She is working in an organization called HURIDOCS."
+      },
+      "source_id": "test_document.pdf",
+      "text": "HURIDOCS",
+      "type": "ORGANIZATION"
+    }
+  },
+  {
+    "name": "Senate",
+    "type": "ORGANIZATION",
+    "source_id": "",
+    "references": [
+      {
+        "index": 0,
+        "text": "Senate"
+      }
+    ],
+    "top_relevance_entity": {
+      "character_end": 10,
+      "character_start": 4,
+      "group_name": "Senate",
+      "relevance_percentage": 30,
+      "segment": {
+        "bounding_box": {
+          "height": 34,
+          "left": 72,
+          "top": 351,
+          "width": 440
+        },
+        "character_end": 10,
+        "character_start": 4,
+        "page_number": 1,
+        "pdf_name": "test_document.pdf",
+        "segment_number": 5,
+        "text": "The Senate passed Resolution No. 122, establishing a set of rules for the impeachment trial."
+      },
+      "source_id": "test_document.pdf",
+      "text": "Senate",
+      "type": "ORGANIZATION"
+    }
+  },
+  {
+    "name": "Resolution No. 122",
+    "type": "LAW",
+    "source_id": "",
+    "references": [
+      {
+        "index": 0,
+        "text": "Resolution No. 122"
+      }
+    ],
+    "top_relevance_entity": {
+      "character_end": 36,
+      "character_start": 18,
+      "group_name": "Resolution No. 122",
+      "relevance_percentage": 46,
+      "segment": {
+        "bounding_box": {
+          "height": 34,
+          "left": 72,
+          "top": 351,
+          "width": 440
+        },
+        "character_end": 36,
+        "character_start": 18,
+        "page_number": 1,
+        "pdf_name": "test_document.pdf",
+        "segment_number": 5,
+        "text": "The Senate passed Resolution No. 122, establishing a set of rules for the impeachment trial."
+      },
+      "source_id": "test_document.pdf",
+      "text": "Resolution No. 122",
+      "type": "LAW"
+    }
+  }
+]

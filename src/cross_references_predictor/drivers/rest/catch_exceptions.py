@@ -9,6 +9,8 @@ def catch_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
+        except HTTPException:
+            raise
         except HTTPError:
             raise HTTPException(status_code=400, detail="Unprocessable text or PDF file")
         except Exception as e:

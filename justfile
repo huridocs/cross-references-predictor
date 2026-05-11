@@ -1,4 +1,8 @@
-HAS_GPU := `command -v nvidia-smi > /dev/null && echo "1" || echo "0"`
+#!/usr/bin/env bash
+
+UNAME := `uname -s`
+HAS_NVIDIA := `command -v nvidia-smi > /dev/null 2>&1 && echo "1" || echo "0"`
+HAS_AMD := `lspci 2>/dev/null | grep -i amd | grep -i vga > /dev/null && echo "1" || echo "0"`
 
 install:
 	. .venv/bin/activate; uv pip install -Ur requirements.txt
@@ -29,17 +33,23 @@ download_models:
 start:
 	#!/usr/bin/env bash
 	mkdir -p ./models
-	if [ "{{HAS_GPU}}" = "1" ]; then
-		echo "NVIDIA GPU detected, using GPU support"
-		docker compose up --build
+	COMPOSE_FILES="-f docker-compose.yml"
+	if [ "{{UNAME}}" = "Darwin" ]; then
+		echo "Detected macOS - running in CPU mode (no GPU passthrough available)"
+	elif [ "{{HAS_NVIDIA}}" = "1" ]; then
+		echo "NVIDIA GPU detected, using NVIDIA GPU support"
+		COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.nvidia.yml"
+	elif [ "{{HAS_AMD}}" = "1" ]; then
+		echo "AMD GPU detected, using AMD GPU support (ROCm)"
+		COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.amd.yml"
 	else
-		echo "No NVIDIA GPU detected"
-		docker compose up --build
+		echo "No GPU detected, running in CPU mode"
 	fi
+	docker compose $COMPOSE_FILES up --build
 
 start_no_gpu:
 	mkdir -p ./models
-	docker compose up --build
+	docker compose -f docker-compose.yml up --build
 
 stop:
 	docker compose stop
@@ -85,13 +95,19 @@ start_detached:
 	#!/usr/bin/env bash
 	mkdir -p ./models
 	mkdir -p ./data
-	if [ "{{HAS_GPU}}" = "1" ]; then
-		echo "NVIDIA GPU detected, using GPU support"
-		docker compose up --build -d
+	COMPOSE_FILES="-f docker-compose.yml"
+	if [ "{{UNAME}}" = "Darwin" ]; then
+		echo "Detected macOS - running in CPU mode (no GPU passthrough available)"
+	elif [ "{{HAS_NVIDIA}}" = "1" ]; then
+		echo "NVIDIA GPU detected, using NVIDIA GPU support"
+		COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.nvidia.yml"
+	elif [ "{{HAS_AMD}}" = "1" ]; then
+		echo "AMD GPU detected, using AMD GPU support (ROCm)"
+		COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.amd.yml"
 	else
-		echo "No NVIDIA GPU detected"
-		docker compose up --build -d
+		echo "No GPU detected, running in CPU mode"
 	fi
+	docker compose $COMPOSE_FILES up --build -d
 
 upgrade:
 	. .venv/bin/activate; pip-upgrade

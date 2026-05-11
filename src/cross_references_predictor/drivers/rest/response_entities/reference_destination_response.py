@@ -24,7 +24,7 @@ class ReferenceDestinationResponse(BaseModel):
             top_relevance_entity = reference
 
         return ReferenceDestinationResponse(
-            name=reference.group_name,
+            name=reference.destination,
             type=reference.type,
             source_id=group.source_id,
             references=[entity_text],

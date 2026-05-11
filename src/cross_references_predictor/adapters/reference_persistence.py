@@ -49,7 +49,7 @@ class ReferencePersistence(BaseModel):
             normalized_text=self.normalized_text,
             character_start=self.character_start,
             character_end=self.character_end,
-            group_name=self.group_name,
+            destination=self.group_name,
             segment=segment,
             appearance_count=self.appearance_count,
             percentage_to_segment_text=self.percentage_to_segment_text,
@@ -59,28 +59,29 @@ class ReferencePersistence(BaseModel):
         )
 
     @staticmethod
-    def from_row(row):
+    def from_row(row, columns: list[str]):
+        col_map = {name: idx for idx, name in enumerate(columns)}
         return ReferencePersistence(
-            type=ReferenceType(row[1]),
-            text=row[2],
-            normalized_text=row[3],
-            character_start=row[4],
-            character_end=row[5],
-            group_name=row[6],
-            segment_text=row[7],
-            segment_page_number=row[8],
-            segment_segment_number=row[9],
-            segment_type=row[10],
-            segment_source_id=row[11],
-            segment_bounding_box_left=row[12],
-            segment_bounding_box_top=row[13],
-            segment_bounding_box_width=row[14],
-            segment_bounding_box_height=row[15],
-            appearance_count=row[16],
-            percentage_to_segment_text=row[17],
-            first_type_appearance=bool(row[18]),
-            last_type_appearance=bool(row[19]),
-            relevance_percentage=row[20],
+            type=ReferenceType(row[col_map["type"]]),
+            text=row[col_map["text"]],
+            normalized_text=row[col_map["normalized_text"]],
+            character_start=row[col_map["character_start"]],
+            character_end=row[col_map["character_end"]],
+            group_name=row[col_map["group_id"]],
+            segment_text=row[col_map.get("segment_text")],
+            segment_page_number=row[col_map.get("segment_page_number")],
+            segment_segment_number=row[col_map.get("segment_segment_number")],
+            segment_type=row[col_map.get("segment_type")],
+            segment_source_id=row[col_map.get("segment_source_id")],
+            segment_bounding_box_left=row[col_map.get("segment_bounding_box_left")],
+            segment_bounding_box_top=row[col_map.get("segment_bounding_box_top")],
+            segment_bounding_box_width=row[col_map.get("segment_bounding_box_width")],
+            segment_bounding_box_height=row[col_map.get("segment_bounding_box_height")],
+            appearance_count=row[col_map["appearance_count"]],
+            percentage_to_segment_text=row[col_map["percentage_to_segment_text"]],
+            first_type_appearance=bool(row[col_map["first_type_appearance"]]),
+            last_type_appearance=bool(row[col_map["last_type_appearance"]]),
+            relevance_percentage=row[col_map["relevance_percentage"]],
         )
 
     @staticmethod
@@ -92,7 +93,7 @@ class ReferencePersistence(BaseModel):
             normalized_text=reference.normalized_text,
             character_start=reference.character_start,
             character_end=reference.character_end,
-            group_name=reference.group_name,
+            destination=reference.destination,
             segment_text=segment.text if segment else None,
             segment_page_number=segment.page_number if segment else None,
             segment_segment_number=segment.segment_number if segment else None,

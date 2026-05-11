@@ -102,9 +102,26 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
         self.create_database()
         connection, cursor = self.get_connection()
 
-        cursor.execute(f"SELECT * FROM {self.schema_name}.references")
+        cursor.execute(f"""
+            SELECT r.id, r.type, r.text, r.normalized_text, r.character_start, r.character_end,
+                   r.group_id, r.segment_id,
+                   s.text AS segment_text, s.page_number AS segment_page_number,
+                   s.segment_number AS segment_segment_number, s.type AS segment_type,
+                   s.source_id AS segment_source_id,
+                   s.bounding_box_left AS segment_bounding_box_left,
+                   s.bounding_box_top AS segment_bounding_box_top,
+                   s.bounding_box_width AS segment_bounding_box_width,
+                   s.bounding_box_height AS segment_bounding_box_height,
+                   s.page_width, s.page_height,
+                   r.appearance_count, r.percentage_to_segment_text,
+                   r.first_type_appearance, r.last_type_appearance,
+                   r.relevance_percentage
+            FROM {self.schema_name}.references r
+            LEFT JOIN {self.schema_name}.segments s ON r.segment_id = s.id
+        """)
         rows = cursor.fetchall()
-        entities = [ReferencePersistence.from_row(row).to_reference() for row in rows]
+        columns = [desc[0] for desc in cursor.description]
+        entities = [ReferencePersistence.from_row(row, columns).to_reference() for row in rows]
 
         connection.close()
         return entities

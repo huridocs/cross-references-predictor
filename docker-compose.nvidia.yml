@@ -1,0 +1,7 @@
+services:
+  cross-references-predictor:
+    runtime: nvidia
+    gpus: all
+
+  pdf-layout-analysis:
+    gpus: all

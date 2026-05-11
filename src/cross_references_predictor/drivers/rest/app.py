@@ -22,6 +22,15 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
+try:
+    import torch
+
+    logging.info(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        logging.info(f"CUDA device: {torch.cuda.get_device_name(0)}")
+except ImportError:
+    logging.info("PyTorch not installed")
+
 app = FastAPI()
 
 
@@ -70,7 +79,7 @@ async def get_cross_references(
         if identifier:
             repository.save_identifier(identifier)
 
-    return CrossReferencesResponse.from_groups(reference_destinations)
+    return CrossReferencesResponse.from_destinations(reference_destinations)
 
 
 @app.get("/identifiers")

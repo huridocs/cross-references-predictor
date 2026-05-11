@@ -1,9 +1,10 @@
-FROM pytorch/pytorch:2.7.1-cuda11.8-cudnn9-runtime
+FROM pytorch/pytorch:2.4.0-cuda11.8-cudnn9-runtime
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-ENV PYTHONPATH "${PYTHONPATH}:/app/src"
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y git curl
 
-RUN apt-get update && apt-get install -y git
+ENV PYTHONPATH="${PYTHONPATH}:/app/src"
 
 RUN mkdir -p /app/src
 
@@ -17,11 +18,12 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 ENV TZ=UTC
 
-COPY --chown=python:python ./src/download_models.py ./src/download_models.py
-RUN mkdir -p models; python src/download_models.py
-
 COPY requirements.txt requirements.txt
 RUN uv pip install --upgrade pip; uv pip install -r requirements.txt
+
+WORKDIR /app
+COPY --chown=python:python ./src/download_models.py ./src/download_models.py
+RUN mkdir -p /app/models; python src/download_models.py
 
 WORKDIR /app
 COPY --chown=python:python ./src/. ./src

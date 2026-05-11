@@ -1,0 +1,232 @@
+[
+  {
+    "character_end": 41,
+    "character_start": 24,
+    "destination": "the Louvre Museum",
+    "relevance_percentage": 31,
+    "segment": {
+      "bounding_box": {
+        "height": 34,
+        "left": 72,
+        "top": 74,
+        "width": 429
+      },
+      "character_end": 41,
+      "character_start": 24,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 1,
+      "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+    },
+    "source_id": "test_document.pdf",
+    "text": "the Louvre Museum",
+    "type": "ORGANIZATION"
+  },
+  {
+    "character_end": 50,
+    "character_start": 45,
+    "destination": "Paris",
+    "relevance_percentage": 30,
+    "segment": {
+      "bounding_box": {
+        "height": 34,
+        "left": 72,
+        "top": 74,
+        "width": 429
+      },
+      "character_end": 50,
+      "character_start": 45,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 1,
+      "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+    },
+    "source_id": "test_document.pdf",
+    "text": "Paris",
+    "type": "LOCATION"
+  },
+  {
+    "character_end": 58,
+    "character_start": 52,
+    "destination": "France",
+    "relevance_percentage": 30,
+    "segment": {
+      "bounding_box": {
+        "height": 34,
+        "left": 72,
+        "top": 74,
+        "width": 429
+      },
+      "character_end": 58,
+      "character_start": 52,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 1,
+      "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+    },
+    "source_id": "test_document.pdf",
+    "text": "France",
+    "type": "LOCATION"
+  },
+  {
+    "character_end": 87,
+    "character_start": 74,
+    "destination": "2023-07-12",
+    "relevance_percentage": 46,
+    "segment": {
+      "bounding_box": {
+        "height": 34,
+        "left": 72,
+        "top": 74,
+        "width": 429
+      },
+      "character_end": 87,
+      "character_start": 74,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 1,
+      "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+    },
+    "source_id": "test_document.pdf",
+    "text": "July 12, 2023",
+    "type": "DATE"
+  },
+  {
+    "character_end": 15,
+    "character_start": 0,
+    "destination": "Maria Diaz Rodriguez",
+    "relevance_percentage": 31,
+    "segment": {
+      "bounding_box": {
+        "height": 34,
+        "left": 72,
+        "top": 74,
+        "width": 429
+      },
+      "character_end": 15,
+      "character_start": 0,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 1,
+      "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
+    },
+    "source_id": "test_document.pdf",
+    "text": "Maria Rodriguez",
+    "type": "PERSON"
+  },
+  {
+    "character_end": 52,
+    "character_start": 32,
+    "destination": "Maria Diaz Rodriguez",
+    "relevance_percentage": 18,
+    "segment": {
+      "bounding_box": {
+        "height": 14,
+        "left": 73,
+        "top": 153,
+        "width": 350
+      },
+      "character_end": 52,
+      "character_start": 32,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 2,
+      "text": "The full name of this person is Maria Diaz Rodriguez."
+    },
+    "source_id": "test_document.pdf",
+    "text": "Maria Diaz Rodriguez",
+    "type": "PERSON"
+  },
+  {
+    "character_end": 40,
+    "character_start": 26,
+    "destination": "Maria Diaz Rodriguez",
+    "relevance_percentage": 33,
+    "segment": {
+      "bounding_box": {
+        "height": 14,
+        "left": 72,
+        "top": 213,
+        "width": 269
+      },
+      "character_end": 40,
+      "character_start": 26,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 3,
+      "text": "It can also be written as M.D. Rodriguez."
+    },
+    "source_id": "test_document.pdf",
+    "text": "M.D. Rodriguez",
+    "type": "PERSON"
+  },
+  {
+    "character_end": 49,
+    "character_start": 41,
+    "destination": "HURIDOCS",
+    "relevance_percentage": 16,
+    "segment": {
+      "bounding_box": {
+        "height": 15,
+        "left": 72,
+        "top": 292,
+        "width": 352
+      },
+      "character_end": 49,
+      "character_start": 41,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 4,
+      "text": "She is working in an organization called HURIDOCS."
+    },
+    "source_id": "test_document.pdf",
+    "text": "HURIDOCS",
+    "type": "ORGANIZATION"
+  },
+  {
+    "character_end": 10,
+    "character_start": 4,
+    "destination": "Senate",
+    "relevance_percentage": 30,
+    "segment": {
+      "bounding_box": {
+        "height": 34,
+        "left": 72,
+        "top": 351,
+        "width": 440
+      },
+      "character_end": 10,
+      "character_start": 4,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 5,
+      "text": "The Senate passed Resolution No. 122, establishing a set of rules for the impeachment trial."
+    },
+    "source_id": "test_document.pdf",
+    "text": "Senate",
+    "type": "ORGANIZATION"
+  },
+  {
+    "character_end": 36,
+    "character_start": 18,
+    "destination": "Resolution No. 122",
+    "relevance_percentage": 46,
+    "segment": {
+      "bounding_box": {
+        "height": 34,
+        "left": 72,
+        "top": 351,
+        "width": 440
+      },
+      "character_end": 36,
+      "character_start": 18,
+      "page_number": 1,
+      "pdf_name": "test_document.pdf",
+      "segment_number": 5,
+      "text": "The Senate passed Resolution No. 122, establishing a set of rules for the impeachment trial."
+    },
+    "source_id": "test_document.pdf",
+    "text": "Resolution No. 122",
+    "type": "LAW"
+  }
+]

@@ -14,14 +14,14 @@ class ReferenceDestinationUseCase:
     def _initialize_prior_groups(self):
         sorted_prior_entities = sorted(self.prior_references, key=lambda x: x.relevance_percentage, reverse=True)
         for prior_entity in sorted_prior_entities:
-            group_name = prior_entity.group_name
+            group_name = prior_entity.destination
             if group_name in self.prior_groups:
                 self.prior_groups[group_name].references.append(prior_entity)
                 continue
 
             self.prior_groups[group_name] = ReferenceDestination(
                 type=prior_entity.type,
-                name=prior_entity.group_name,
+                name=prior_entity.destination,
                 references=[prior_entity],
                 top_relevance_entity=prior_entity,
             )
@@ -51,7 +51,7 @@ class ReferenceDestinationUseCase:
     def _try_assign_to_prior_group(self, named_entity: Reference) -> bool:
         for prior_group in self.prior_groups.values():
             if prior_group.belongs_to_destination(named_entity):
-                named_entity.group_name = prior_group.name
+                named_entity.destination = prior_group.name
                 prior_group.references = [named_entity]
                 prior_group.top_relevance_entity = self._determine_top_relevance_entity(
                     prior_group.top_relevance_entity, named_entity
@@ -75,9 +75,9 @@ class ReferenceDestinationUseCase:
             group.name = better_group_name
             self.groups[better_group_name] = group
             for entity in group.references:
-                entity.group_name = better_group_name
+                entity.destination = better_group_name
 
-        named_entity.group_name = group.name
+        named_entity.destination = group.name
         group.top_relevance_entity = self._determine_top_relevance_entity(group.top_relevance_entity, named_entity)
         group.references.append(named_entity)
 
@@ -97,7 +97,7 @@ class ReferenceDestinationUseCase:
 
     def _create_new_group_for_entity(self, named_entity: Reference):
         group_name = self._get_group_name_for_entity(named_entity)
-        named_entity.group_name = group_name
+        named_entity.destination = group_name
 
         self.groups[group_name] = ReferenceDestination(
             type=named_entity.type, name=group_name, references=[named_entity], top_relevance_entity=named_entity

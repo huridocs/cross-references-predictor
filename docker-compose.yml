@@ -22,7 +22,8 @@ services:
 
   pdf-layout-analysis:
     container_name: "pdf-layout-analysis"
-    image: ghcr.io/huridocs/pdf-document-layout-analysis:0.0.34
+    entrypoint: [ "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--chdir", "./src", "app:app", "--bind", "0.0.0.0:5060", "--timeout", "10000"]
+    image: ghcr.io/huridocs/pdf-document-layout-analysis:0.0.32
     init: true
     restart: unless-stopped
     networks:

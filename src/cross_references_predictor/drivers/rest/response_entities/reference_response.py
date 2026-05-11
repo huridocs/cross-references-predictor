@@ -7,7 +7,7 @@ from cross_references_predictor.drivers.rest.response_entities.segment_response 
 
 
 class ReferenceResponse(BaseModel):
-    group_name: str
+    destination: str
     type: ReferenceType
     text: str
     character_start: int
@@ -20,13 +20,13 @@ class ReferenceResponse(BaseModel):
     @staticmethod
     def from_reference(reference: Reference):
         return ReferenceResponse(
-            group_name=reference.group_name,
+            destination=reference.destination,
             type=reference.type,
             text=reference.text,
             character_start=reference.character_start,
             character_end=reference.character_end,
             relevance_percentage=reference.relevance_percentage,
             segment=SegmentResponse.from_reference(reference),
-            source_id=reference.segment.source_id,
+            source_id=reference.segment.source_id if reference.segment else "",
             text_positions=[BoundingBoxResponse.from_rectangle(x) for x in reference.text_positions],
         )

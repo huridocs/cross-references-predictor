@@ -23,7 +23,7 @@ class Reference(BaseModel):
     normalized_text: str = ""
     character_start: int = 0
     character_end: int = 0
-    group_name: str = ""
+    destination: str = ""
     segment_type: TokenType = TokenType.TEXT
     appearance_count: int = 0
     percentage_to_segment_text: int = 0
@@ -34,10 +34,10 @@ class Reference(BaseModel):
     relevance_percentage: int = 0
 
     @staticmethod
-    def from_segment(reference: "Reference", segment: Segment, group_name: str = "") -> "Reference":
+    def from_segment(reference: "Reference", segment: Segment, destination: str = "") -> "Reference":
         reference.segment = segment
-        if not reference.group_name:
-            reference.group_name = group_name
+        if not reference.destination:
+            reference.destination = destination
         return reference
 
     @staticmethod

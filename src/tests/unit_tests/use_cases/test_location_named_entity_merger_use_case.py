@@ -68,7 +68,7 @@ class TestReferenceDestinationUseCaseWithPrior(TestCase):
             Reference(
                 type=ReferenceType.REFERENCE,
                 text="Section 1",
-                group_name="Section 1",
+                destination="Section 1",
                 relevance_percentage=100,
             )
         ]

@@ -10,7 +10,7 @@ class TestPersonReferenceMergerUseCaseWithPrior(TestCase):
             Reference(
                 type=ReferenceType.PERSON,
                 text="John Doe",
-                group_name="John Doe",
+                destination="John Doe",
                 relevance_percentage=100,
             )
         ]

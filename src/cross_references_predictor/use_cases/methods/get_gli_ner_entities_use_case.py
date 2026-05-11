@@ -38,7 +38,7 @@ class GetGLiNEREntitiesUseCase(ReferenceExtractionMethod):
         for i in range(0, len(words), self.SLIDE_SIZE):
             window_words = words[i : i + self.WINDOW_SIZE]
             window_text = " ".join(window_words)
-            window_references = classifier.predict_references(window_text, ["date"])
+            window_references = classifier.predict_entities(window_text, ["date"])
             window_references = self.convert_to_named_entity_type(window_references)
 
             for entity in window_references:
@@ -48,7 +48,10 @@ class GetGLiNEREntitiesUseCase(ReferenceExtractionMethod):
             slide_words = words[i : i + self.SLIDE_SIZE]
             slide_text = " ".join(slide_words)
             last_slide_end_index += len(slide_text) + 1
-            self.references.extend(window_references)
+
+            for entity in window_references:
+                if not any(e.text == entity.text and e.character_start == entity.character_start for e in self.references):
+                    self.references.append(entity)
 
     @staticmethod
     def remove_uncompleted_dates(references):

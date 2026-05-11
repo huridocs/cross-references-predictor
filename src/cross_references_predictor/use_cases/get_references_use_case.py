@@ -1,6 +1,6 @@
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.segment import Segment
-from cross_references_predictor.use_cases.methods.base import ReferenceExtractionMethod
+from cross_references_predictor.use_cases.methods.reference_extraction_method_base import ReferenceExtractionMethod
 
 
 class GetReferencesUseCase:
@@ -29,9 +29,9 @@ class GetReferencesUseCase:
         return sorted(entities, key=lambda x: x.character_start)
 
     def get_references_from_segments(self, segments: list[Segment]) -> list[Reference]:
-        entities: list[Reference] = []
+        all_references = []
         for segment in segments:
-            references: list[Reference] = self.get_references_from_text(segment.text)
+            references = self.get_references_from_text(segment.text)
             pdf_references = [Reference.from_segment(ref, segment) for ref in references]
-            entities.extend(pdf_references)
-        return entities
+            all_references.extend(pdf_references)
+        return all_references
