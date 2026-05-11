@@ -519,3 +519,136 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
         except Exception as e:
             print(f"Error deleting reference: {e}")
             return False
+
+    def get_reference_by_id(self, reference_id: int) -> dict | None:
+        self.create_database()
+        try:
+            connection, cursor = self.get_connection()
+            cursor.execute(
+                f"""
+                SELECT ne.id, ne.type, ne.text, ne.normalized_text, ne.character_start, ne.character_end,
+                       ne.group_id, ne.segment_id, ne.appearance_count, ne.percentage_to_segment_text,
+                       ne.first_type_appearance, ne.last_type_appearance, ne.relevance_percentage,
+                       rd.name as destination_name,
+                       s.id as segment_id_db, s.text as segment_text, s.page_number, s.segment_number,
+                       s.type as segment_type, s.source_id, s.bounding_box_left, s.bounding_box_top,
+                       s.bounding_box_width, s.bounding_box_height, s.page_width, s.page_height
+                FROM {self.schema_name}.references ne
+                LEFT JOIN {self.schema_name}.reference_destination rd ON ne.group_id = rd.id
+                LEFT JOIN {self.schema_name}.segments s ON ne.segment_id = s.id
+                WHERE ne.id = %s AND ne.type = 'Reference'
+                """,
+                (reference_id,),
+            )
+            row = cursor.fetchone()
+            connection.close()
+
+            if row is None:
+                return None
+
+            from cross_references_predictor.domain.reference_type import ReferenceType
+            from pdf_features import Rectangle
+            from cross_references_predictor.domain.segment import Segment
+
+            segment = None
+            if row[13] is not None:
+                segment = Segment(
+                    id=row[13],
+                    text=row[14] or "",
+                    page_number=row[15] or 0,
+                    segment_number=row[16] or 0,
+                    type=row[17] or "Text",
+                    source_id=row[18] or "",
+                    bounding_box=Rectangle.from_width_height(
+                        left=row[19] or 0,
+                        top=row[20] or 0,
+                        width=row[21] or 0,
+                        height=row[22] or 0,
+                    ),
+                    page_width=row[23] or 0,
+                    page_height=row[24] or 0,
+                )
+
+            return {
+                "id": row[0],
+                "type": row[1],
+                "text": row[2],
+                "normalized_text": row[3],
+                "character_start": row[4],
+                "character_end": row[5],
+                "group_id": row[6],
+                "segment_id": row[7],
+                "appearance_count": row[8],
+                "percentage_to_segment_text": row[9],
+                "first_type_appearance": row[10],
+                "last_type_appearance": row[11],
+                "relevance_percentage": row[12],
+                "destination_name": row[25],
+                "segment": segment.to_dict() if segment else None,
+            }
+        except Exception as e:
+            print(f"Error getting reference by id: {e}")
+            return None
+
+    def update_reference(self, reference_id: int, updates: dict) -> bool:
+        if not self.exists_schema():
+            return False
+
+        try:
+            connection, cursor = self.get_connection()
+
+            destination_name = updates.get("destination_name")
+            if destination_name is not None:
+                cursor.execute(
+                    f"SELECT id FROM {self.schema_name}.reference_destination WHERE name = %s",
+                    (destination_name,),
+                )
+                row = cursor.fetchone()
+                if row is not None:
+                    group_id = row[0]
+                else:
+                    cursor.execute(
+                        f"INSERT INTO {self.schema_name}.reference_destination (name) VALUES (%s) RETURNING id",
+                        (destination_name,),
+                    )
+                    result = cursor.fetchone()
+                    group_id = result[0] if result else None
+            else:
+                group_id = None
+
+            reference_text = updates.get("text")
+            if group_id is not None and reference_text is not None:
+                cursor.execute(
+                    f"""
+                    UPDATE {self.schema_name}.references
+                    SET text = %s, normalized_text = %s, group_id = %s
+                    WHERE id = %s AND type = 'Reference'
+                    """,
+                    (reference_text, reference_text, group_id, reference_id),
+                )
+            elif reference_text is not None:
+                cursor.execute(
+                    f"""
+                    UPDATE {self.schema_name}.references
+                    SET text = %s, normalized_text = %s
+                    WHERE id = %s AND type = 'Reference'
+                    """,
+                    (reference_text, reference_text, reference_id),
+                )
+            elif group_id is not None:
+                cursor.execute(
+                    f"UPDATE {self.schema_name}.references SET group_id = %s WHERE id = %s AND type = 'Reference'",
+                    (group_id, reference_id),
+                )
+
+            cursor.execute(f"""
+                DELETE FROM {self.schema_name}.reference_destination
+                WHERE id NOT IN (SELECT DISTINCT group_id FROM {self.schema_name}.references WHERE type = 'Reference' AND group_id IS NOT NULL)
+            """)
+
+            connection.commit()
+            connection.close()
+            return True
+        except Exception as e:
+            print(f"Error updating reference: {e}")
+            return False

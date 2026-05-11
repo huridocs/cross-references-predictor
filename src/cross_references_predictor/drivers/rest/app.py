@@ -2,7 +2,7 @@ import sys
 import tempfile
 import uuid
 from pathlib import Path
-from fastapi import FastAPI, Form, UploadFile, File
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException
 from starlette.responses import FileResponse
 
 from cross_references_predictor.adapters.pdf_layout_analysis_repository import PDFLayoutAnalysisRepository
@@ -183,6 +183,42 @@ async def create_reference(
 async def get_references(namespace: str = "default_namespace", language: str = "en"):
     store_repository = PostgresReferencesStoreRepository(namespace, language)
     return store_repository.get_all_references()
+
+
+@app.get("/references/{reference_id}")
+@catch_exceptions
+async def get_reference(reference_id: int, namespace: str = "default_namespace", language: str = "en"):
+    store_repository = PostgresReferencesStoreRepository(namespace, language)
+    reference = store_repository.get_reference_by_id(reference_id)
+    if reference is None:
+        raise HTTPException(status_code=404, detail="Reference not found")
+    return reference
+
+
+@app.patch("/references/{reference_id}")
+@catch_exceptions
+async def update_reference(
+    reference_id: int,
+    namespace: str = Form(...),
+    language: str = Form("en"),
+    text: str = Form(None),
+    destination_name: str = Form(None),
+):
+    store_repository = PostgresReferencesStoreRepository(namespace, language)
+    updates = {}
+    if text is not None:
+        updates["text"] = text
+    if destination_name is not None:
+        updates["destination_name"] = destination_name
+
+    if not updates:
+        return {"status": "error", "message": "No updates provided"}
+
+    success = store_repository.update_reference(reference_id, updates)
+    if success:
+        return {"status": "success", "message": "Reference updated successfully"}
+    else:
+        return {"status": "error", "message": "Failed to update reference"}, 400
 
 
 @app.post("/delete_reference")

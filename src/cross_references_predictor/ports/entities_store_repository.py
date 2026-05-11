@@ -29,3 +29,15 @@ class EntitiesStoreRepository(ABC):
     @abstractmethod
     def get_identifiers(self) -> list[str]:
         pass
+
+    @abstractmethod
+    def get_reference_by_id(self, reference_id: int) -> dict | None:
+        pass
+
+    @abstractmethod
+    def update_reference(self, reference_id: int, updates: dict) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_reference(self, reference_id: int) -> bool:
+        pass
