@@ -63,28 +63,35 @@ class ReferencePersistence(BaseModel):
     @staticmethod
     def from_row(row, columns: list[str]):
         col_map = {name: idx for idx, name in enumerate(columns)}
+
+        def val(name, default=None):
+            if name not in col_map:
+                return default
+            v = row[col_map[name]]
+            return default if v is None else v
+
         return ReferencePersistence(
-            id=row[col_map["id"]],
+            id=val("id"),
             type=ReferenceType(row[col_map["type"]]),
             text=row[col_map["text"]],
-            normalized_text=row[col_map["normalized_text"]],
-            character_start=row[col_map["character_start"]],
-            character_end=row[col_map["character_end"]],
-            group_name=row[col_map["group_id"]],
-            segment_text=row[col_map.get("segment_text")],
-            segment_page_number=row[col_map.get("segment_page_number")],
-            segment_segment_number=row[col_map.get("segment_segment_number")],
-            segment_type=row[col_map.get("segment_type")],
-            segment_source_id=row[col_map.get("segment_source_id")],
-            segment_bounding_box_left=row[col_map.get("segment_bounding_box_left")],
-            segment_bounding_box_top=row[col_map.get("segment_bounding_box_top")],
-            segment_bounding_box_width=row[col_map.get("segment_bounding_box_width")],
-            segment_bounding_box_height=row[col_map.get("segment_bounding_box_height")],
-            appearance_count=row[col_map["appearance_count"]],
-            percentage_to_segment_text=row[col_map["percentage_to_segment_text"]],
-            first_type_appearance=bool(row[col_map["first_type_appearance"]]),
-            last_type_appearance=bool(row[col_map["last_type_appearance"]]),
-            relevance_percentage=row[col_map["relevance_percentage"]],
+            normalized_text=val("normalized_text", ""),
+            character_start=val("character_start", 0),
+            character_end=val("character_end", 0),
+            group_name=(val("group_id") or ""),
+            segment_text=val("segment_text"),
+            segment_page_number=val("segment_page_number"),
+            segment_segment_number=val("segment_segment_number"),
+            segment_type=val("segment_type", "Text"),
+            segment_source_id=val("segment_source_id"),
+            segment_bounding_box_left=val("segment_bounding_box_left"),
+            segment_bounding_box_top=val("segment_bounding_box_top"),
+            segment_bounding_box_width=val("segment_bounding_box_width"),
+            segment_bounding_box_height=val("segment_bounding_box_height"),
+            appearance_count=val("appearance_count", 0),
+            percentage_to_segment_text=val("percentage_to_segment_text", 0),
+            first_type_appearance=bool(val("first_type_appearance", False)),
+            last_type_appearance=bool(val("last_type_appearance", False)),
+            relevance_percentage=val("relevance_percentage", 0),
         )
 
     @staticmethod

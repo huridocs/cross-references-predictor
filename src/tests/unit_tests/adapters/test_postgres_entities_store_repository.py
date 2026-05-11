@@ -107,7 +107,8 @@ class TestPostgresReferencesStoreRepositorySaveReferences(TestCase):
 
         mock_connection = MagicMock()
         mock_cursor = MagicMock()
-        mock_psycopg2.connect.return_value = (mock_connection, mock_cursor)
+        mock_psycopg2.connect.return_value = mock_connection
+        mock_connection.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = (1,)
 
         repository = PostgresReferencesStoreRepository("test_ns", "en")
@@ -147,7 +148,8 @@ class TestPostgresReferencesStoreRepositoryGetReferences(TestCase):
 
         mock_connection = MagicMock()
         mock_cursor = MagicMock()
-        mock_psycopg2.connect.return_value = (mock_connection, mock_cursor)
+        mock_psycopg2.connect.return_value = mock_connection
+        mock_connection.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = True
         mock_cursor.fetchall.return_value = [
             (
@@ -157,6 +159,7 @@ class TestPostgresReferencesStoreRepositoryGetReferences(TestCase):
                 "john doe",
                 0,
                 8,
+                None,
                 None,
                 None,
                 None,
