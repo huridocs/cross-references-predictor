@@ -643,16 +643,36 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
 
             for dest in destinations:
                 alt_names_json = json.dumps(dest.alternative_names)
+
                 cursor.execute(
-                    f"""
-                    INSERT INTO {self.schema_name}.consolidated_destinations (name, type, alternative_names, is_from_reference)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (name, type) DO UPDATE SET
-                        alternative_names = EXCLUDED.alternative_names,
-                        is_from_reference = EXCLUDED.is_from_reference
-                    """,
-                    (dest.name, str(dest.type), alt_names_json, dest.is_from_reference),
+                    f"SELECT id, alternative_names, is_from_reference FROM {self.schema_name}.consolidated_destinations WHERE name = %s AND type = %s",
+                    (dest.name, str(dest.type)),
                 )
+                existing = cursor.fetchone()
+
+                if existing:
+                    existing_alt = json.loads(existing[1]) if existing[1] else []
+                    merged_alt = list(existing_alt)
+                    for alt in dest.alternative_names:
+                        if alt not in merged_alt:
+                            merged_alt.append(alt)
+                    is_ref = bool(existing[2]) or dest.is_from_reference
+                    cursor.execute(
+                        f"""
+                        UPDATE {self.schema_name}.consolidated_destinations
+                        SET alternative_names = %s, is_from_reference = %s
+                        WHERE id = %s
+                        """,
+                        (json.dumps(merged_alt), is_ref, existing[0]),
+                    )
+                else:
+                    cursor.execute(
+                        f"""
+                        INSERT INTO {self.schema_name}.consolidated_destinations (name, type, alternative_names, is_from_reference)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (dest.name, str(dest.type), alt_names_json, dest.is_from_reference),
+                    )
 
             connection.commit()
             connection.close()
