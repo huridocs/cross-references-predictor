@@ -11,7 +11,7 @@ class PersistenceReferenceDestination:
     title: str
     page_number: int
     segment_number: int
-    pdf_name: str
+    destination_id: str
     left: int
     top: int
     width: int
@@ -24,7 +24,7 @@ class PersistenceReferenceDestination:
             title=row[1],
             page_number=row[2],
             segment_number=row[3],
-            pdf_name=row[4],
+            destination_id=row[4],
             left=row[5],
             top=row[6],
             width=row[7],
@@ -37,6 +37,6 @@ class PersistenceReferenceDestination:
             text=self.title,
             page_number=self.page_number,
             bounding_box=bounding_box,
-            source_id=self.pdf_name,
+            pdf_name=self.destination_id,
             segment_number=self.segment_number,
         )

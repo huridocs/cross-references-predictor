@@ -19,7 +19,7 @@ class ReferencePersistence(BaseModel):
     segment_page_number: Optional[int] = None
     segment_segment_number: Optional[int] = None
     segment_type: str = "Text"
-    segment_source_id: Optional[str] = None
+    segment_pdf_name: Optional[str] = None
     segment_bounding_box_left: Optional[int] = None
     segment_bounding_box_top: Optional[int] = None
     segment_bounding_box_width: Optional[int] = None
@@ -35,7 +35,7 @@ class ReferencePersistence(BaseModel):
             page_number=self.segment_page_number if self.segment_segment_number else 0,
             segment_number=self.segment_segment_number if self.segment_segment_number else 0,
             type=self.segment_type,
-            source_id=self.segment_source_id if self.segment_source_id else "",
+            pdf_name=self.segment_pdf_name if self.segment_pdf_name else "",
             bounding_box=Rectangle.from_width_height(
                 left=self.segment_bounding_box_left if self.segment_bounding_box_left else 0,
                 top=self.segment_bounding_box_top if self.segment_bounding_box_top else 0,
@@ -82,7 +82,7 @@ class ReferencePersistence(BaseModel):
             segment_page_number=val("segment_page_number"),
             segment_segment_number=val("segment_segment_number"),
             segment_type=val("segment_type", "Text"),
-            segment_source_id=val("segment_source_id"),
+            segment_pdf_name=val("segment_pdf_name"),
             segment_bounding_box_left=val("segment_bounding_box_left"),
             segment_bounding_box_top=val("segment_bounding_box_top"),
             segment_bounding_box_width=val("segment_bounding_box_width"),
@@ -109,7 +109,7 @@ class ReferencePersistence(BaseModel):
             segment_page_number=segment.page_number if segment else None,
             segment_segment_number=segment.segment_number if segment else None,
             segment_type=segment.type if segment else "Text",
-            segment_source_id=segment.source_id if segment else None,
+            segment_pdf_name=segment.pdf_name if segment else None,
             segment_bounding_box_left=segment.bounding_box.left if segment and segment.bounding_box else None,
             segment_bounding_box_top=segment.bounding_box.top if segment and segment.bounding_box else None,
             segment_bounding_box_width=segment.bounding_box.width if segment and segment.bounding_box else None,

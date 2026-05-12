@@ -9,7 +9,7 @@ from cross_references_predictor.drivers.rest.response_entities.reference_respons
 class ReferenceDestinationResponse(BaseModel):
     name: str
     type: ReferenceType
-    source_id: str = ""
+    destination_id: str = ""
     references: list[ReferenceTextResponse] = []
     top_relevance_entity: ReferenceResponse
 
@@ -26,7 +26,7 @@ class ReferenceDestinationResponse(BaseModel):
         return ReferenceDestinationResponse(
             name=reference.destination,
             type=reference.type,
-            source_id=group.source_id,
+            destination_id=group.destination_id,
             references=[entity_text],
             top_relevance_entity=top_relevance_entity,
         )

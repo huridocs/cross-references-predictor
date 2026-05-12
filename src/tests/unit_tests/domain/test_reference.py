@@ -57,7 +57,7 @@ class TestReference(TestCase):
             page_number=1,
             segment_number=1,
             type="Text",
-            source_id="test.pdf",
+            pdf_name="test.pdf",
         )
         reference = Reference(
             type=ReferenceType.REFERENCE,
@@ -97,7 +97,7 @@ class TestReferenceIntegration(TestCase):
             page_number=1,
             segment_number=1,
             type="Text",
-            source_id="test.pdf",
+            pdf_name="test.pdf",
             bounding_box=Rectangle.from_width_height(left=0, top=0, width=100, height=50),
             page_width=612,
             page_height=792,

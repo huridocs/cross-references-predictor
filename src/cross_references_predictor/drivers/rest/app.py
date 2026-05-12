@@ -63,7 +63,7 @@ async def get_cross_references(
         pdf_path = pdf_content_to_pdf_path(await file.read(), file.filename)
         segments = PDFLayoutAnalysisRepository().get_segments(pdf_path, fast)
     else:
-        segments = [Segment.from_text(text=text if text else "", source_id=identifier)]
+        segments = [Segment.from_text(text=text if text else "", pdf_name=identifier)]
 
     store_repository = PostgresReferencesStoreRepository(namespace, language) if namespace else None
     references_from_db = store_repository.get_references() if store_repository else list()
@@ -125,7 +125,7 @@ async def save_text(
         pdf_path = pdf_content_to_pdf_path(await file.read(), file.filename)
         segments = PDFLayoutAnalysisRepository().get_segments(pdf_path, fast)
     else:
-        segments = [Segment.from_text(text=text if text else "", source_id=identifier)]
+        segments = [Segment.from_text(text=text if text else "", pdf_name=identifier)]
 
     store_repository.save_segments(segments)
     return "Texts saved"

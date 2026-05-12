@@ -22,5 +22,5 @@ class SegmentResponse(BaseModel):
             character_start=reference.character_start,
             character_end=reference.character_end,
             bounding_box=BoundingBoxResponse.from_rectangle(reference.segment.bounding_box),
-            pdf_name=reference.segment.source_id,
+            pdf_name=reference.segment.pdf_name,
         )

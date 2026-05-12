@@ -15,7 +15,7 @@ class ReferenceResponse(BaseModel):
     relevance_percentage: int = 0
     segment: SegmentResponse
     text_positions: list[BoundingBoxResponse] = []
-    source_id: str
+    pdf_name: str
 
     @staticmethod
     def from_reference(reference: Reference):
@@ -27,6 +27,6 @@ class ReferenceResponse(BaseModel):
             character_end=reference.character_end,
             relevance_percentage=reference.relevance_percentage,
             segment=SegmentResponse.from_reference(reference),
-            source_id=reference.segment.source_id if reference.segment else "",
+            pdf_name=reference.segment.pdf_name if reference.segment else "",
             text_positions=[BoundingBoxResponse.from_rectangle(x) for x in reference.text_positions],
         )

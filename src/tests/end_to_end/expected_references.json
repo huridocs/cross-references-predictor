@@ -18,7 +18,7 @@
       "segment_number": 1,
       "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "the Louvre Museum",
     "type": "ORGANIZATION"
   },
@@ -41,7 +41,7 @@
       "segment_number": 1,
       "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "Paris",
     "type": "LOCATION"
   },
@@ -64,7 +64,7 @@
       "segment_number": 1,
       "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "France",
     "type": "LOCATION"
   },
@@ -87,7 +87,7 @@
       "segment_number": 1,
       "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "July 12, 2023",
     "type": "DATE"
   },
@@ -110,7 +110,7 @@
       "segment_number": 1,
       "text": "Maria Rodriguez visited the Louvre Museum in Paris, France, on Wednesday, July 12, 2023."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "Maria Rodriguez",
     "type": "PERSON"
   },
@@ -133,7 +133,7 @@
       "segment_number": 2,
       "text": "The full name of this person is Maria Diaz Rodriguez."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "Maria Diaz Rodriguez",
     "type": "PERSON"
   },
@@ -156,7 +156,7 @@
       "segment_number": 3,
       "text": "It can also be written as M.D. Rodriguez."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "M.D. Rodriguez",
     "type": "PERSON"
   },
@@ -179,7 +179,7 @@
       "segment_number": 4,
       "text": "She is working in an organization called HURIDOCS."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "HURIDOCS",
     "type": "ORGANIZATION"
   },
@@ -202,7 +202,7 @@
       "segment_number": 5,
       "text": "The Senate passed Resolution No. 122, establishing a set of rules for the impeachment trial."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "Senate",
     "type": "ORGANIZATION"
   },
@@ -225,7 +225,7 @@
       "segment_number": 5,
       "text": "The Senate passed Resolution No. 122, establishing a set of rules for the impeachment trial."
     },
-    "source_id": "test_document.pdf",
+    "pdf_name": "test_document.pdf",
     "text": "Resolution No. 122",
     "type": "LAW"
   }

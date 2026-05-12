@@ -93,7 +93,7 @@ class TestEndToEnd(TestCase):
             self.assertIn("destination", reference)
             self.assertIn("segment", reference)
             self.assertIn("relevance_percentage", reference)
-            self.assertIn("source_id", reference)
+            self.assertIn("pdf_name", reference)
             self.assertIn("page_number", reference["segment"])
             self.assertIn("segment_number", reference["segment"])
             self.assertIn("character_start", reference["segment"])

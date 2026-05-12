@@ -10,7 +10,7 @@ class TestSegment(TestCase):
             page_number=1,
             segment_number=1,
             type="Text",
-            source_id="test.pdf",
+            pdf_name="test.pdf",
             bounding_box=Rectangle.from_width_height(left=0, top=0, width=100, height=50),
         )
 
@@ -33,13 +33,13 @@ class TestSegment(TestCase):
         self.assertEqual(segment.text, "Test segment")
         self.assertEqual(segment.page_number, 1)
         self.assertEqual(segment.segment_number, 1)
-        self.assertEqual(segment.source_id, "test.pdf")
+        self.assertEqual(segment.pdf_name, "test.pdf")
 
     def test_from_text(self):
         segment = Segment.from_text("Hello world", "doc.pdf")
 
         self.assertEqual(segment.text, "Hello world")
-        self.assertEqual(segment.source_id, "doc.pdf")
+        self.assertEqual(segment.pdf_name, "doc.pdf")
         self.assertEqual(segment.page_number, 0)
         self.assertEqual(segment.segment_number, 0)
 

@@ -115,7 +115,7 @@ class TestPostgresReferencesStoreRepositorySaveReferences(TestCase):
 
         segment = Segment(
             text="Test segment",
-            source_id="test_source",
+            pdf_name="test_source",
             page_number=1,
             segment_number=1,
             type="Text",
@@ -192,7 +192,7 @@ class TestPostgresReferencesStoreRepositoryGetReferences(TestCase):
             ("segment_page_number",),
             ("segment_segment_number",),
             ("segment_type",),
-            ("segment_source_id",),
+            ("segment_pdf_name",),
             ("segment_bounding_box_left",),
             ("segment_bounding_box_top",),
             ("segment_bounding_box_width",),

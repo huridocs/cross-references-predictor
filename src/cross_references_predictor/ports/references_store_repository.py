@@ -5,7 +5,7 @@ from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.segment import Segment
 
 
-class EntitiesStoreRepository(ABC):
+class ReferencesStoreRepository(ABC):
 
     @abstractmethod
     def get_references(self) -> list[Reference]:

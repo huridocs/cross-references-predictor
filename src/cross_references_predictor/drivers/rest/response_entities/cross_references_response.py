@@ -27,7 +27,7 @@ class CrossReferencesResponse(BaseModel):
                 {
                     "name": group.name,
                     "type": str(group.type),
-                    "source_id": group.source_id,
+                    "destination_id": group.destination_id,
                     "references": entity_texts,
                     "top_relevance_entity": (
                         ReferenceResponse.from_reference(group.top_relevance_entity).model_dump()

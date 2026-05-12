@@ -11,7 +11,7 @@ from cross_references_predictor.domain.segment import Segment
 class ReferenceDestination(BaseModel):
     type: ReferenceType
     name: str
-    source_id: str = ""
+    destination_id: str = ""
     segment: Segment | None = None
     references: list[Reference] = list()
     known_forms: list[str] = []

@@ -5,11 +5,11 @@ from cross_references_predictor.domain.consolidated_destination import Consolida
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.reference_type import ReferenceType
 from cross_references_predictor.domain.segment import Segment
-from cross_references_predictor.ports.entities_store_repository import EntitiesStoreRepository
+from cross_references_predictor.ports.references_store_repository import ReferencesStoreRepository
 import os
 
 
-class PostgresReferencesStoreRepository(EntitiesStoreRepository):
+class PostgresReferencesStoreRepository(ReferencesStoreRepository):
     def __init__(self, schema_name: str = "public", language: str = "en"):
         self.language = language
         self.schema_name = f"{schema_name}_{language}"
@@ -62,7 +62,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                 page_number INTEGER,
                 segment_number INTEGER,
                 type TEXT,
-                source_id TEXT,
+                pdf_name TEXT,
                 bounding_box_left INTEGER,
                 bounding_box_top INTEGER,
                 bounding_box_width INTEGER,
@@ -114,7 +114,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                    rd.name AS group_name, r.segment_id,
                    s.text AS segment_text, s.page_number AS segment_page_number,
                    s.segment_number AS segment_segment_number, s.type AS segment_type,
-                   s.source_id AS segment_source_id,
+                   s.pdf_name AS segment_pdf_name,
                    s.bounding_box_left AS segment_bounding_box_left,
                    s.bounding_box_top AS segment_bounding_box_top,
                    s.bounding_box_width AS segment_bounding_box_width,
@@ -156,13 +156,13 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
             self.create_database()
         try:
             connection, cursor = self.get_connection()
-            source_ids = set(entity.segment.source_id for entity in references if entity.segment is not None)
-            if source_ids:
-                format_strings = ",".join(["%s"] * len(source_ids))
+            pdf_names = set(entity.segment.pdf_name for entity in references if entity.segment is not None)
+            if pdf_names:
+                format_strings = ",".join(["%s"] * len(pdf_names))
                 cursor.execute(
                     f"""DELETE FROM {self.schema_name}.references 
-                    WHERE segment_id IN (SELECT id FROM {self.schema_name}.segments WHERE source_id IN ({format_strings}))""",
-                    tuple(source_ids),
+                    WHERE segment_id IN (SELECT id FROM {self.schema_name}.segments WHERE pdf_name IN ({format_strings}))""",
+                    tuple(pdf_names),
                 )
                 connection.commit()
 
@@ -204,10 +204,10 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                         continue
 
                 segment_id = None
-                if entity.segment and entity.segment.source_id:
+                if entity.segment and entity.segment.pdf_name:
                     cursor.execute(
-                        f"SELECT id FROM {self.schema_name}.segments WHERE source_id = %s",
-                        (entity.segment.source_id,),
+                        f"SELECT id FROM {self.schema_name}.segments WHERE pdf_name = %s",
+                        (entity.segment.pdf_name,),
                     )
                     seg_row = cursor.fetchone()
                     if seg_row:
@@ -266,7 +266,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                     page_number INTEGER,
                     segment_number INTEGER,
                     type TEXT,
-                    source_id TEXT,
+                    pdf_name TEXT,
                     bounding_box_left INTEGER,
                     bounding_box_top INTEGER,
                     bounding_box_width INTEGER,
@@ -276,19 +276,19 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                 )
             """)
 
-            source_ids = set(seg.source_id for seg in segments)
-            if source_ids:
-                format_strings = ",".join(["%s"] * len(source_ids))
+            pdf_names = set(seg.pdf_name for seg in segments)
+            if pdf_names:
+                format_strings = ",".join(["%s"] * len(pdf_names))
                 cursor.execute(
-                    f"DELETE FROM {self.schema_name}.segments WHERE source_id IN ({format_strings})",
-                    tuple(source_ids),
+                    f"DELETE FROM {self.schema_name}.segments WHERE pdf_name IN ({format_strings})",
+                    tuple(pdf_names),
                 )
 
             for segment in segments:
                 cursor.execute(
                     f"""
                     INSERT INTO {self.schema_name}.segments (
-                        text, page_number, segment_number, type, source_id,
+                        text, page_number, segment_number, type, pdf_name,
                         bounding_box_left, bounding_box_top, bounding_box_width, bounding_box_height,
                         page_width, page_height
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -298,7 +298,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                         segment.page_number,
                         segment.segment_number,
                         segment.type,
-                        segment.source_id,
+                        segment.pdf_name,
                         segment.bounding_box.left,
                         segment.bounding_box.top,
                         segment.bounding_box.width,
@@ -322,7 +322,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
         try:
             connection, cursor = self.get_connection()
             cursor.execute(
-                f"SELECT * FROM {self.schema_name}.segments WHERE source_id = %s",
+                f"SELECT * FROM {self.schema_name}.segments WHERE pdf_name = %s",
                 (identifier,),
             )
             rows = cursor.fetchall()
@@ -339,7 +339,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                         page_number=row[2],
                         segment_number=row[3],
                         type=row[4],
-                        source_id=row[5],
+                        pdf_name=row[5],
                         bounding_box=Rectangle.from_width_height(left=row[6], top=row[7], width=row[8], height=row[9]),
                         page_width=row[10],
                         page_height=row[11],
@@ -376,7 +376,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
 
                 cursor.execute(
                     f"""
-                    SELECT ne.id, ne.text, s.text, s.page_number, s.segment_number, s.type, s.source_id, s.bounding_box_left, s.bounding_box_top, s.bounding_box_width, s.bounding_box_height
+                    SELECT ne.id, ne.text, s.text, s.page_number, s.segment_number, s.type, s.pdf_name, s.bounding_box_left, s.bounding_box_top, s.bounding_box_width, s.bounding_box_height
                     FROM {self.schema_name}.references ne
                     LEFT JOIN {self.schema_name}.segments s ON ne.segment_id = s.id
                     WHERE ne.group_id = %s AND ne.type = 'REFERENCE'
@@ -393,7 +393,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                         segment_page_number,
                         segment_segment_number,
                         segment_type,
-                        segment_source_id,
+                        segment_pdf_name,
                         segment_bounding_box_left,
                         segment_bounding_box_top,
                         segment_bounding_box_width,
@@ -411,13 +411,13 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                     )
 
                     segment = None
-                    if segment_text is not None or segment_source_id is not None:
+                    if segment_text is not None or segment_pdf_name is not None:
                         segment = Segment(
                             text=segment_text if segment_text else "",
                             page_number=(segment_page_number if segment_page_number else 0),
                             segment_number=(segment_segment_number if segment_segment_number else 0),
                             type=segment_type if segment_type else "Text",
-                            source_id=segment_source_id if segment_source_id else "",
+                            pdf_name=segment_pdf_name if segment_pdf_name else "",
                             bounding_box=Rectangle.from_width_height(
                                 left=(segment_bounding_box_left if segment_bounding_box_left else 0),
                                 top=(segment_bounding_box_top if segment_bounding_box_top else 0),
@@ -471,7 +471,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                        ne.first_type_appearance, ne.last_type_appearance, ne.relevance_percentage,
                        rd.name as destination_name,
                        s.id as segment_id_db, s.text as segment_text, s.page_number, s.segment_number,
-                       s.type as segment_type, s.source_id, s.bounding_box_left, s.bounding_box_top,
+                       s.type as segment_type, s.pdf_name, s.bounding_box_left, s.bounding_box_top,
                        s.bounding_box_width, s.bounding_box_height, s.page_width, s.page_height
                 FROM {self.schema_name}.references ne
                 LEFT JOIN {self.schema_name}.reference_destination rd ON ne.group_id = rd.id
@@ -498,7 +498,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                     page_number=row[16] or 0,
                     segment_number=row[17] or 0,
                     type=row[18] or "Text",
-                    source_id=row[19] or "",
+                    pdf_name=row[19] or "",
                     bounding_box=Rectangle.from_width_height(
                         left=row[20] or 0,
                         top=row[21] or 0,
