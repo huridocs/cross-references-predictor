@@ -77,7 +77,7 @@ class ReferencePersistence(BaseModel):
             normalized_text=val("normalized_text", ""),
             character_start=val("character_start", 0),
             character_end=val("character_end", 0),
-            group_name=(val("group_id") or ""),
+            group_name=str(val("group_name") or ""),
             segment_text=val("segment_text"),
             segment_page_number=val("segment_page_number"),
             segment_segment_number=val("segment_segment_number"),

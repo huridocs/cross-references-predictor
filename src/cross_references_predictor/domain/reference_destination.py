@@ -14,7 +14,9 @@ class ReferenceDestination(BaseModel):
     source_id: str = ""
     segment: Segment | None = None
     references: list[Reference] = list()
-    top_relevance_entity: Reference = None
+    known_forms: list[str] = []
+    is_name_fixed: bool = False
+    top_relevance_entity: Reference | None = None
 
     def is_same_type(self, reference: Reference) -> bool:
         return self.type == reference.type
@@ -26,7 +28,11 @@ class ReferenceDestination(BaseModel):
         normalized_entity = reference.get_with_normalize_entity_text()
         entity_normalized_text = normalized_entity.normalized_text
 
-        for each_normalized_text in [x.normalized_text for x in self.references]:
+        all_normalized_texts = [x.normalized_text for x in self.references]
+        for known_form in self.known_forms:
+            all_normalized_texts.append(Reference.normalize_text(known_form))
+
+        for each_normalized_text in all_normalized_texts:
             if self.type in [ReferenceType.LOCATION, ReferenceType.PERSON, ReferenceType.ORGANIZATION]:
                 if entity_normalized_text in each_normalized_text or each_normalized_text in entity_normalized_text:
                     return True

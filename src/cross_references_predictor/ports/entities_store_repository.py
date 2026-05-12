@@ -1,5 +1,6 @@
 from abc import abstractmethod, ABC
 
+from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.segment import Segment
 
@@ -36,4 +37,16 @@ class EntitiesStoreRepository(ABC):
 
     @abstractmethod
     def delete_reference(self, reference_id: int) -> bool:
+        pass
+
+    @abstractmethod
+    def get_consolidated_destinations(self) -> list[ConsolidatedDestination]:
+        pass
+
+    @abstractmethod
+    def save_consolidated_destinations(self, destinations: list[ConsolidatedDestination]) -> bool:
+        pass
+
+    @abstractmethod
+    def reset_consolidated_destinations(self) -> bool:
         pass

@@ -1,6 +1,9 @@
+import json
 import psycopg2
 from cross_references_predictor.adapters.reference_persistence import ReferencePersistence
+from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
 from cross_references_predictor.domain.reference import Reference
+from cross_references_predictor.domain.reference_type import ReferenceType
 from cross_references_predictor.domain.segment import Segment
 from cross_references_predictor.ports.entities_store_repository import EntitiesStoreRepository
 import os
@@ -85,6 +88,17 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                 relevance_percentage INTEGER
             )
         """)
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.schema_name}.consolidated_destinations (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                alternative_names TEXT DEFAULT '[]',
+                is_from_reference BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(name, type)
+            )
+        """)
         connection.commit()
         connection.close()
 
@@ -97,7 +111,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
 
         cursor.execute(f"""
             SELECT r.id, r.type, r.text, r.normalized_text, r.character_start, r.character_end,
-                   r.group_id, r.segment_id,
+                   rd.name AS group_name, r.segment_id,
                    s.text AS segment_text, s.page_number AS segment_page_number,
                    s.segment_number AS segment_segment_number, s.type AS segment_type,
                    s.source_id AS segment_source_id,
@@ -110,6 +124,7 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                    r.first_type_appearance, r.last_type_appearance,
                    r.relevance_percentage
             FROM {self.schema_name}.references r
+            LEFT JOIN {self.schema_name}.reference_destination rd ON r.group_id = rd.id
             LEFT JOIN {self.schema_name}.segments s ON r.segment_id = s.id
         """)
         rows = cursor.fetchall()
@@ -576,4 +591,86 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
             return True
         except Exception as e:
             print(f"Error updating reference: {e}")
+            return False
+
+    def get_consolidated_destinations(self) -> list[ConsolidatedDestination]:
+        if not self.exists_schema():
+            return []
+
+        try:
+            connection, cursor = self.get_connection()
+            cursor.execute(
+                f"SELECT name, type, alternative_names, is_from_reference FROM {self.schema_name}.consolidated_destinations"
+            )
+            rows = cursor.fetchall()
+            connection.close()
+
+            destinations = []
+            for row in rows:
+                alt_names = json.loads(row[2]) if row[2] else []
+                destinations.append(
+                    ConsolidatedDestination(
+                        name=row[0],
+                        type=ReferenceType(row[1]),
+                        alternative_names=alt_names,
+                        is_from_reference=bool(row[3]),
+                    )
+                )
+
+            # Deduplicate similar destinations
+            deduplicated = []
+            for dest in destinations:
+                merged = False
+                for existing in deduplicated:
+                    if existing.type == dest.type and existing.matches(dest):
+                        existing.merge_with(dest)
+                        merged = True
+                        break
+                if not merged:
+                    deduplicated.append(dest)
+
+            return deduplicated
+        except Exception as e:
+            print(f"Error getting consolidated destinations: {e}")
+            return []
+
+    def save_consolidated_destinations(self, destinations: list[ConsolidatedDestination]) -> bool:
+        if not self.exists_schema():
+            self.create_database()
+
+        try:
+            connection, cursor = self.get_connection()
+
+            for dest in destinations:
+                alt_names_json = json.dumps(dest.alternative_names)
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self.schema_name}.consolidated_destinations (name, type, alternative_names, is_from_reference)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (name, type) DO UPDATE SET
+                        alternative_names = EXCLUDED.alternative_names,
+                        is_from_reference = EXCLUDED.is_from_reference
+                    """,
+                    (dest.name, str(dest.type), alt_names_json, dest.is_from_reference),
+                )
+
+            connection.commit()
+            connection.close()
+            return True
+        except Exception as e:
+            print(f"Error saving consolidated destinations: {e}")
+            return False
+
+    def reset_consolidated_destinations(self) -> bool:
+        if not self.exists_schema():
+            return True
+
+        try:
+            connection, cursor = self.get_connection()
+            cursor.execute(f"DELETE FROM {self.schema_name}.consolidated_destinations WHERE is_from_reference = FALSE")
+            connection.commit()
+            connection.close()
+            return True
+        except Exception as e:
+            print(f"Error resetting consolidated destinations: {e}")
             return False

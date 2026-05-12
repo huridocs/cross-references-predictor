@@ -65,7 +65,9 @@ async def get_cross_references(
     else:
         segments = [Segment.from_text(text=text if text else "", source_id=identifier)]
 
-    references_from_db = PostgresReferencesStoreRepository(namespace, language).get_references() if namespace else list()
+    store_repository = PostgresReferencesStoreRepository(namespace, language) if namespace else None
+    references_from_db = store_repository.get_references() if store_repository else list()
+    consolidated_destinations = store_repository.get_consolidated_destinations() if store_repository else list()
 
     get_references_use_case = GetReferencesUseCase(language)
     references = get_references_use_case.get_references_from_segments(segments)
@@ -73,7 +75,26 @@ async def get_cross_references(
     if file and pdf_path:
         references = GetWordsPositionsUseCase(PDFLayoutAnalysisRepository(), pdf_path).add_positions(references)
 
-    reference_destinations = ReferenceDestinationUseCase(references_from_db, language).group(references)
+    reference_destinations = ReferenceDestinationUseCase(references_from_db, language, consolidated_destinations).group(
+        references
+    )
+
+    if store_repository:
+        from collections import defaultdict
+        from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
+
+        new_consolidated = []
+        for dest in reference_destinations:
+            alternative_names = [ref.text for ref in dest.references if ref.text != dest.name]
+            new_consolidated.append(
+                ConsolidatedDestination(
+                    name=dest.name,
+                    type=dest.type,
+                    alternative_names=alternative_names,
+                    is_from_reference=False,
+                )
+            )
+        store_repository.save_consolidated_destinations(new_consolidated)
 
     return CrossReferencesResponse.from_destinations(reference_destinations)
 
@@ -141,15 +162,46 @@ async def geolocation(location: str = Form(...)):
 @app.post("/save_references")
 @catch_exceptions
 async def save_references(request: SaveReferencesRequest):
+    from collections import defaultdict
+    from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
     from cross_references_predictor.domain.reference import Reference
 
     parsed_references = [Reference(**ref) for ref in request.references]
     store_repository = PostgresReferencesStoreRepository(request.namespace, request.language)
     success = store_repository.save_references(parsed_references)
+
+    destinations_by_name = defaultdict(list)
+    for ref in parsed_references:
+        destinations_by_name[ref.destination].append(ref)
+
+    consolidated = []
+    for dest_name, refs in destinations_by_name.items():
+        type_ = refs[0].type
+        consolidated.append(
+            ConsolidatedDestination(
+                name=dest_name,
+                type=type_,
+                alternative_names=[ref.text for ref in refs if ref.text != dest_name],
+                is_from_reference=True,
+            )
+        )
+    store_repository.save_consolidated_destinations(consolidated)
+
     if success:
         return {"status": "success", "message": f"Saved {len(parsed_references)} references"}
     else:
         return {"status": "error", "message": "Failed to save references"}, 400
+
+
+@app.post("/reset_destinations")
+@catch_exceptions
+async def reset_destinations(namespace: str = Form(...), language: str = Form("en")):
+    store_repository = PostgresReferencesStoreRepository(namespace, language)
+    success = store_repository.reset_consolidated_destinations()
+    if success:
+        return {"status": "success", "message": "Consolidated destinations reset successfully"}
+    else:
+        return {"status": "error", "message": "Failed to reset consolidated destinations"}, 400
 
 
 @app.get("/references")

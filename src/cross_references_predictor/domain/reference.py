@@ -33,6 +33,7 @@ class Reference(BaseModel):
     segment: Optional[Segment] = None
     text_positions: list[Rectangle] = []
     relevance_percentage: int = 0
+    is_from_current_extraction: bool = True
 
     @staticmethod
     def from_segment(reference: "Reference", segment: Segment, destination: str = "") -> "Reference":
