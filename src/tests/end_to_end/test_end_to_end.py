@@ -224,19 +224,11 @@ class TestEndToEnd(TestCase):
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
 
-        result = requests.post(self.service_url + "/is_processed", data={"namespace": namespace, "identifier": identifier})
-        self.assertEqual(200, result.status_code)
-        self.assertFalse(result.json())
-
         data = {"text": text, "namespace": namespace, "identifier": identifier}
         result = requests.post(self.service_url, data=data)
         self.assertEqual(200, result.status_code)
         self.assertIn("references", result.json())
         self.assertIn("destinations", result.json())
-
-        result = requests.post(self.service_url + "/is_processed", data={"namespace": namespace, "identifier": identifier})
-        self.assertEqual(200, result.status_code)
-        self.assertFalse(result.json())
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
 

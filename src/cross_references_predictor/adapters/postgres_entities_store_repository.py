@@ -85,13 +85,6 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                 relevance_percentage INTEGER
             )
         """)
-        cursor.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.schema_name}.identifiers (
-                id SERIAL PRIMARY KEY,
-                identifier TEXT UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
         connection.commit()
         connection.close()
 
@@ -244,42 +237,6 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
         except Exception as e:
             print(f"Error deleting database schema: {e}")
 
-    def save_identifier(self, identifier: str) -> bool:
-        if not identifier:
-            return False
-
-        if not self.exists_schema():
-            self.create_database()
-
-        try:
-            connection, cursor = self.get_connection()
-            cursor.execute(
-                f"INSERT INTO {self.schema_name}.identifiers (identifier) VALUES (%s) ON CONFLICT DO NOTHING",
-                (identifier,),
-            )
-            connection.commit()
-            connection.close()
-            return True
-        except Exception as e:
-            print(f"Error saving identifier: {e}")
-            return False
-
-    def is_processed(self, identifier: str) -> bool:
-        if not identifier or not self.exists_schema():
-            return False
-
-        try:
-            connection, cursor = self.get_connection()
-            cursor.execute(
-                f"SELECT 1 FROM {self.schema_name}.identifiers WHERE identifier = %s",
-                (identifier,),
-            )
-            result = cursor.fetchone() is not None
-            connection.close()
-            return result
-        except Exception:
-            return False
-
     def save_segments(self, segments: list[Segment]) -> bool:
         if not self.exists_schema():
             self.create_database()
@@ -312,14 +269,6 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                     tuple(source_ids),
                 )
 
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {self.schema_name}.identifiers (
-                    id SERIAL PRIMARY KEY,
-                    identifier TEXT UNIQUE NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
             for segment in segments:
                 cursor.execute(
                     f"""
@@ -342,12 +291,6 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
                         segment.page_width,
                         segment.page_height,
                     ),
-                )
-
-            for source_id in source_ids:
-                cursor.execute(
-                    f"INSERT INTO {self.schema_name}.identifiers (identifier) VALUES (%s) ON CONFLICT DO NOTHING",
-                    (source_id,),
                 )
 
             connection.commit()
@@ -391,75 +334,6 @@ class PostgresReferencesStoreRepository(EntitiesStoreRepository):
         except Exception as e:
             print(f"Error getting segments: {e}")
             return []
-
-    def get_identifiers(self) -> list[str]:
-        if not self.exists_schema():
-            return []
-
-        try:
-            connection, cursor = self.get_connection()
-            cursor.execute(f"SELECT identifier FROM {self.schema_name}.identifiers")
-            rows = cursor.fetchall()
-            connection.close()
-            return [row[0] for row in rows]
-        except Exception as e:
-            print(f"Error getting identifiers: {e}")
-            return []
-
-    def save_reference(self, segment_id: int | None, reference_text: str, to_text: str) -> bool:
-        self.create_database()
-
-        try:
-            connection, cursor = self.get_connection()
-
-            cursor.execute(
-                f"SELECT id FROM {self.schema_name}.reference_destination WHERE name = %s",
-                (to_text,),
-            )
-            row = cursor.fetchone()
-            if row is not None:
-                destination_id = row[0]
-            else:
-                cursor.execute(
-                    f"""
-                    INSERT INTO {self.schema_name}.reference_destination (name)
-                    VALUES (%s)
-                    RETURNING id
-                    """,
-                    (to_text,),
-                )
-                result = cursor.fetchone()
-                destination_id = result[0] if result is not None else None
-
-            cursor.execute(
-                f"""
-                INSERT INTO {self.schema_name}.references (
-                    type, text, normalized_text, character_start, character_end, group_id,
-                    segment_id,
-                    appearance_count, percentage_to_segment_text, first_type_appearance, last_type_appearance, relevance_percentage
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    "REFERENCE",
-                    reference_text,
-                    reference_text,
-                    0,
-                    0,
-                    destination_id,
-                    segment_id,
-                    0,
-                    0,
-                    False,
-                    False,
-                    0,
-                ),
-            )
-            connection.commit()
-            connection.close()
-            return True
-        except Exception as e:
-            print(f"Error saving reference: {e}")
-            return False
 
     def get_all_references(self) -> list:
         if not self.exists_schema():

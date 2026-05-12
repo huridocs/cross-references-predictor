@@ -3,7 +3,6 @@ import tempfile
 import uuid
 from pathlib import Path
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException
-from pydantic import BaseModel
 from starlette.responses import FileResponse
 
 from cross_references_predictor.adapters.pdf_layout_analysis_repository import PDFLayoutAnalysisRepository
@@ -13,6 +12,7 @@ from cross_references_predictor.adapters.postgres_entities_store_repository impo
 from cross_references_predictor.domain.segment import Segment
 from cross_references_predictor.drivers.rest.catch_exceptions import catch_exceptions
 from cross_references_predictor.drivers.rest.response_entities.cross_references_response import CrossReferencesResponse
+from cross_references_predictor.drivers.rest.save_references_request import SaveReferencesRequest
 
 from cross_references_predictor.use_cases.get_geolocation_use_case import GetGeolocationUseCase
 from cross_references_predictor.use_cases.get_words_positions_use_case import GetWordsPositionsUseCase
@@ -31,13 +31,6 @@ try:
         logging.info(f"CUDA device: {torch.cuda.get_device_name(0)}")
 except ImportError:
     logging.info("PyTorch not installed")
-
-
-class SaveReferencesRequest(BaseModel):
-    namespace: str
-    language: str = "en"
-    references: list
-    identifier: str | None = None
 
 
 app = FastAPI()
@@ -85,13 +78,6 @@ async def get_cross_references(
     return CrossReferencesResponse.from_destinations(reference_destinations)
 
 
-@app.get("/identifiers")
-@catch_exceptions
-async def get_identifiers(namespace: str = "default_namespace", language: str = "en"):
-    store_repository = PostgresReferencesStoreRepository(namespace, language)
-    return store_repository.get_identifiers()
-
-
 @app.get("/segments")
 @catch_exceptions
 async def get_segments(identifier: str, namespace: str = "default_namespace", language: str = "en"):
@@ -113,8 +99,6 @@ async def save_text(
     language: str = Form("en"),
 ):
     store_repository = PostgresReferencesStoreRepository(namespace, language)
-    if store_repository.is_processed(identifier):
-        return "Already processed"
 
     if file:
         pdf_path = pdf_content_to_pdf_path(await file.read(), file.filename)
@@ -131,16 +115,6 @@ async def save_text(
 async def delete_namespace(namespace: str = Form(None), language: str = Form("en")):
     PostgresReferencesStoreRepository(namespace, language).delete_database()
     return "Deleted"
-
-
-@app.post("/is_processed")
-@catch_exceptions
-async def is_processed(namespace: str = Form(None), identifier: str = Form(None), language: str = Form("en")):
-    if not namespace or not identifier:
-        return False
-
-    exists = PostgresReferencesStoreRepository(namespace, language).is_processed(identifier)
-    return exists
 
 
 @app.post("/visualize")
@@ -164,23 +138,6 @@ async def geolocation(location: str = Form(...)):
     return GetGeolocationUseCase().get_coordinates(location)
 
 
-@app.post("/create_reference")
-@catch_exceptions
-async def create_reference(
-    namespace: str = Form(...),
-    segment_id: int = Form(None),
-    reference_text: str = Form(...),
-    to_text: str = Form(...),
-    language: str = Form("en"),
-):
-    store_repository = PostgresReferencesStoreRepository(namespace, language)
-    success = store_repository.save_reference(segment_id, reference_text, to_text)
-    if success:
-        return {"status": "success", "message": "Reference created successfully"}
-    else:
-        return {"status": "error", "message": "Failed to create reference"}
-
-
 @app.post("/save_references")
 @catch_exceptions
 async def save_references(request: SaveReferencesRequest):
@@ -189,8 +146,6 @@ async def save_references(request: SaveReferencesRequest):
     parsed_references = [Reference(**ref) for ref in request.references]
     store_repository = PostgresReferencesStoreRepository(request.namespace, request.language)
     success = store_repository.save_references(parsed_references)
-    if request.identifier:
-        store_repository.save_identifier(request.identifier)
     if success:
         return {"status": "success", "message": f"Saved {len(parsed_references)} references"}
     else:

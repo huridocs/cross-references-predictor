@@ -27,10 +27,6 @@ class EntitiesStoreRepository(ABC):
         pass
 
     @abstractmethod
-    def get_identifiers(self) -> list[str]:
-        pass
-
-    @abstractmethod
     def get_reference_by_id(self, reference_id: int) -> dict | None:
         pass
 
