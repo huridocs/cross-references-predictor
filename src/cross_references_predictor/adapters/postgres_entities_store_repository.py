@@ -2,6 +2,8 @@ import json
 import psycopg2
 from cross_references_predictor.adapters.reference_persistence import ReferencePersistence
 from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
+from cross_references_predictor.domain.destination_detection import DestinationDetection
+from cross_references_predictor.domain.destination_info import DestinationInfo
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.reference_type import ReferenceType
 from cross_references_predictor.domain.segment import Segment
@@ -97,6 +99,20 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 is_from_reference BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(name, type)
+            )
+        """)
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.schema_name}.detection_scripts (
+                id SERIAL PRIMARY KEY,
+                destination_id TEXT UNIQUE NOT NULL,
+                destination_type TEXT NOT NULL,
+                destination_name TEXT NOT NULL,
+                destination_segment_text TEXT,
+                destination_segment_pdf_name TEXT,
+                reference_ids TEXT DEFAULT '[]',
+                regex TEXT NOT NULL,
+                script TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         connection.commit()
@@ -693,4 +709,186 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
             return True
         except Exception as e:
             print(f"Error resetting consolidated destinations: {e}")
+            return False
+
+    def get_references_by_type(self, reference_type: str) -> list[Reference]:
+        if not self.exists_schema():
+            return []
+
+        self.create_database()
+        try:
+            connection, cursor = self.get_connection()
+
+            cursor.execute(
+                f"""
+                SELECT r.id, r.type, r.text, r.normalized_text, r.character_start, r.character_end,
+                       rd.name AS group_name, r.segment_id,
+                       s.text AS segment_text, s.page_number AS segment_page_number,
+                       s.segment_number AS segment_segment_number, s.type AS segment_type,
+                       s.pdf_name AS segment_pdf_name,
+                       s.bounding_box_left AS segment_bounding_box_left,
+                       s.bounding_box_top AS segment_bounding_box_top,
+                       s.bounding_box_width AS segment_bounding_box_width,
+                       s.bounding_box_height AS segment_bounding_box_height,
+                       s.page_width, s.page_height,
+                       r.appearance_count, r.percentage_to_segment_text,
+                       r.first_type_appearance, r.last_type_appearance,
+                       r.relevance_percentage
+                FROM {self.schema_name}.references r
+                LEFT JOIN {self.schema_name}.reference_destination rd ON r.group_id = rd.id
+                LEFT JOIN {self.schema_name}.segments s ON r.segment_id = s.id
+                WHERE r.type = %s
+            """,
+                (reference_type,),
+            )
+            rows = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            entities = [ReferencePersistence.from_row(row, columns).to_reference() for row in rows]
+
+            connection.close()
+            return entities
+        except Exception as e:
+            print(f"Error getting references by type: {e}")
+            return []
+
+    def save_detection_script(self, script: DestinationDetection) -> bool:
+        if not self.exists_schema():
+            self.create_database()
+
+        try:
+            connection, cursor = self.get_connection()
+            reference_ids_json = json.dumps(script.reference_ids)
+
+            cursor.execute(
+                f"""
+                INSERT INTO {self.schema_name}.detection_scripts (
+                    destination_id, destination_type, destination_name,
+                    destination_segment_text, destination_segment_pdf_name,
+                    reference_ids, regex, script
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (destination_id) DO UPDATE SET
+                    destination_type = EXCLUDED.destination_type,
+                    destination_name = EXCLUDED.destination_name,
+                    destination_segment_text = EXCLUDED.destination_segment_text,
+                    destination_segment_pdf_name = EXCLUDED.destination_segment_pdf_name,
+                    reference_ids = EXCLUDED.reference_ids,
+                    regex = EXCLUDED.regex,
+                    script = EXCLUDED.script,
+                    created_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    script.destination_id,
+                    str(script.destination.type),
+                    script.destination.name,
+                    script.destination.segment_text,
+                    script.destination.segment_pdf_name,
+                    reference_ids_json,
+                    script.regex,
+                    script.script,
+                ),
+            )
+            connection.commit()
+            connection.close()
+            return True
+        except Exception as e:
+            print(f"Error saving detection script: {e}")
+            return False
+
+    def get_detection_scripts(self) -> list[DestinationDetection]:
+        if not self.exists_schema():
+            return []
+
+        self.create_database()
+        try:
+            connection, cursor = self.get_connection()
+            cursor.execute(f"""
+                SELECT destination_id, destination_type, destination_name,
+                       destination_segment_text, destination_segment_pdf_name,
+                       reference_ids, regex, script, created_at
+                FROM {self.schema_name}.detection_scripts
+            """)
+            rows = cursor.fetchall()
+            connection.close()
+
+            scripts = []
+            for row in rows:
+                reference_ids = json.loads(row[5]) if row[5] else []
+                destination = DestinationInfo(
+                    type=ReferenceType(row[1]),
+                    name=row[2],
+                    segment_text=row[3],
+                    segment_pdf_name=row[4],
+                )
+                scripts.append(
+                    DestinationDetection(
+                        destination_id=row[0],
+                        destination=destination,
+                        reference_ids=reference_ids,
+                        regex=row[6],
+                        script=row[7],
+                        created_at=str(row[8]) if row[8] else None,
+                    )
+                )
+            return scripts
+        except Exception as e:
+            print(f"Error getting detection scripts: {e}")
+            return []
+
+    def get_detection_script_by_destination_id(self, destination_id: str) -> DestinationDetection | None:
+        if not self.exists_schema():
+            return None
+
+        self.create_database()
+        try:
+            connection, cursor = self.get_connection()
+            cursor.execute(
+                f"""
+                SELECT destination_id, destination_type, destination_name,
+                       destination_segment_text, destination_segment_pdf_name,
+                       reference_ids, regex, script, created_at
+                FROM {self.schema_name}.detection_scripts
+                WHERE destination_id = %s
+            """,
+                (destination_id,),
+            )
+            row = cursor.fetchone()
+            connection.close()
+
+            if row is None:
+                return None
+
+            reference_ids = json.loads(row[5]) if row[5] else []
+            destination = DestinationInfo(
+                type=ReferenceType(row[1]),
+                name=row[2],
+                segment_text=row[3],
+                segment_pdf_name=row[4],
+            )
+            return DestinationDetection(
+                destination_id=row[0],
+                destination=destination,
+                reference_ids=reference_ids,
+                regex=row[6],
+                script=row[7],
+                created_at=str(row[8]) if row[8] else None,
+            )
+        except Exception as e:
+            print(f"Error getting detection script by destination id: {e}")
+            return None
+
+    def delete_detection_script(self, destination_id: str) -> bool:
+        if not self.exists_schema():
+            return False
+
+        try:
+            connection, cursor = self.get_connection()
+            cursor.execute(
+                f"DELETE FROM {self.schema_name}.detection_scripts WHERE destination_id = %s",
+                (destination_id,),
+            )
+            connection.commit()
+            connection.close()
+            return True
+        except Exception as e:
+            print(f"Error deleting detection script: {e}")
             return False
