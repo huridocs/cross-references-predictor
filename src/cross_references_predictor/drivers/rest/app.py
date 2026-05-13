@@ -1,10 +1,12 @@
 import sys
 import tempfile
+import threading
 import uuid
 from pathlib import Path
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException
 from starlette.responses import FileResponse
 
+from cross_references_predictor.adapters.ollama_llm_repository import OllamaLLMRepository
 from cross_references_predictor.adapters.pdf_layout_analysis_repository import PDFLayoutAnalysisRepository
 from cross_references_predictor.adapters.pdf_visualization_repository import PDFVisualizationRepository
 from cross_references_predictor.adapters.postgres_entities_store_repository import PostgresReferencesStoreRepository
@@ -14,6 +16,7 @@ from cross_references_predictor.drivers.rest.catch_exceptions import catch_excep
 from cross_references_predictor.drivers.rest.response_entities.cross_references_response import CrossReferencesResponse
 from cross_references_predictor.drivers.rest.save_references_request import SaveReferencesRequest
 
+from cross_references_predictor.use_cases.generate_detection_scripts_use_case import GenerateDestinationDetectionsUseCase
 from cross_references_predictor.use_cases.get_geolocation_use_case import GetGeolocationUseCase
 from cross_references_predictor.use_cases.get_words_positions_use_case import GetWordsPositionsUseCase
 from cross_references_predictor.use_cases.reference_destination_entities_use_case import ReferenceDestinationUseCase
@@ -34,6 +37,8 @@ except ImportError:
 
 
 app = FastAPI()
+
+_tasks: dict[str, dict] = {}
 
 
 def pdf_content_to_pdf_path(file_content, file_name: str = None) -> Path:
@@ -256,3 +261,53 @@ async def delete_reference(namespace: str = Form(...), reference_id: int = Form(
         return {"status": "success", "message": "Reference deleted successfully"}
     else:
         return {"status": "error", "message": "Failed to delete reference"}
+
+
+@app.post("/generate_detection_scripts")
+@catch_exceptions
+async def generate_detection_scripts(
+    namespace: str = Form(...),
+    language: str = Form("en"),
+):
+    task_id = str(uuid.uuid4())
+    _tasks[task_id] = {
+        "status": "pending",
+        "result": None,
+        "error": None,
+    }
+
+    def _run():
+        _tasks[task_id]["status"] = "running"
+        try:
+            llm_service = OllamaLLMRepository()
+            repository = PostgresReferencesStoreRepository(namespace, language)
+            use_case = GenerateDestinationDetectionsUseCase(
+                llm_service=llm_service,
+                repository=repository,
+            )
+            scripts = use_case.execute()
+            _tasks[task_id]["result"] = {
+                "scripts_generated": len(scripts),
+            }
+            _tasks[task_id]["status"] = "completed"
+        except Exception as e:
+            _tasks[task_id]["status"] = "failed"
+            _tasks[task_id]["error"] = str(e)
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    return {"task_id": task_id}
+
+
+@app.get("/tasks/{task_id}")
+@catch_exceptions
+async def get_task_status(task_id: str):
+    task = _tasks.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {
+        "status": task["status"],
+        "result": task["result"],
+        "error": task["error"],
+    }
