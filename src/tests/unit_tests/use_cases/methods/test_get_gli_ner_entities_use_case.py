@@ -6,7 +6,7 @@ from cross_references_predictor.domain.reference_type import ReferenceType
 
 class TestGetGLiNEREntitiesUseCase(TestCase):
     def setUp(self):
-        self.use_case = GetGLiNEREntitiesUseCase(language="en")
+        self.use_case = GetGLiNEREntitiesUseCase(model=None, language="en")
 
     def test_create_use_case(self):
         self.assertEqual(self.use_case.language, "en")

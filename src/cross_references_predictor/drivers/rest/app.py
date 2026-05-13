@@ -10,7 +10,12 @@ from cross_references_predictor.adapters.ollama_llm_repository import OllamaLLMR
 from cross_references_predictor.adapters.pdf_layout_analysis_repository import PDFLayoutAnalysisRepository
 from cross_references_predictor.adapters.pdf_visualization_repository import PDFVisualizationRepository
 from cross_references_predictor.adapters.postgres_entities_store_repository import PostgresReferencesStoreRepository
+from cross_references_predictor.adapters.model_loader_repository import ConcreteModelLoader
 
+from collections import defaultdict
+
+from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
+from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.segment import Segment
 from cross_references_predictor.drivers.rest.catch_exceptions import catch_exceptions
 from cross_references_predictor.drivers.rest.response_entities.cross_references_response import CrossReferencesResponse
@@ -74,7 +79,8 @@ async def get_cross_references(
     references_from_db = store_repository.get_references() if store_repository else list()
     consolidated_destinations = store_repository.get_consolidated_destinations() if store_repository else list()
 
-    get_references_use_case = GetReferencesUseCase(language)
+    model_loader = ConcreteModelLoader()
+    get_references_use_case = GetReferencesUseCase(language, model_loader=model_loader)
     references = get_references_use_case.get_references_from_segments(segments)
 
     if file and pdf_path:
@@ -85,9 +91,6 @@ async def get_cross_references(
     )
 
     if store_repository:
-        from collections import defaultdict
-        from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
-
         new_consolidated = []
         for dest in reference_destinations:
             alternative_names = [ref.text for ref in dest.references if ref.text != dest.name]
@@ -167,10 +170,6 @@ async def geolocation(location: str = Form(...)):
 @app.post("/save_references")
 @catch_exceptions
 async def save_references(request: SaveReferencesRequest):
-    from collections import defaultdict
-    from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
-    from cross_references_predictor.domain.reference import Reference
-
     parsed_references = [Reference(**ref) for ref in request.references]
     store_repository = PostgresReferencesStoreRepository(request.namespace, request.language)
     success = store_repository.save_references(parsed_references)

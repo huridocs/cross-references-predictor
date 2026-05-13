@@ -16,6 +16,17 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
 
+ALL_REFERENCE_TYPES = [
+    "PERSON",
+    "ORGANIZATION",
+    "LOCATION",
+    "DATE",
+    "LAW",
+    "DOCUMENT_CODE",
+    "REFERENCE",
+]
+PROCESS_REFERENCE_TYPES = os.getenv("PROCESS_REFERENCE_TYPES", ",".join(ALL_REFERENCE_TYPES)).split(",")
+
 if __name__ == "__main__":
     print(f"SRC_PATH: {SRC_PATH}")
     print(f"ROOT_PATH: {ROOT_PATH}")

@@ -1,14 +1,7 @@
-from pathlib import Path
-
 from dateparser.search import search_dates
-from gliner import GLiNER
-from cross_references_predictor.use_cases.methods.reference_extraction_method_base import ReferenceExtractionMethod
-from cross_references_predictor.configuration import MODELS_PATH
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.reference_type import ReferenceType
-
-gliner_path = Path(MODELS_PATH, "gliner")
-classifier = GLiNER.from_pretrained(gliner_path) if gliner_path.exists() else None
+from cross_references_predictor.use_cases.methods.reference_extraction_method_base import ReferenceExtractionMethod
 
 
 class GetGLiNEREntitiesUseCase(ReferenceExtractionMethod):
@@ -16,7 +9,8 @@ class GetGLiNEREntitiesUseCase(ReferenceExtractionMethod):
     WINDOW_SIZE = 20
     SLIDE_SIZE = 10
 
-    def __init__(self, language: str = "en"):
+    def __init__(self, model, language: str = "en"):
+        self._model = model
         self.language = language
         self.references: list[Reference] = list()
 
@@ -34,11 +28,13 @@ class GetGLiNEREntitiesUseCase(ReferenceExtractionMethod):
         return result
 
     def iterate_through_windows(self, words):
+        if self._model is None:
+            return
         last_slide_end_index = 0
         for i in range(0, len(words), self.SLIDE_SIZE):
             window_words = words[i : i + self.WINDOW_SIZE]
             window_text = " ".join(window_words)
-            window_references = classifier.predict_entities(window_text, ["date"])
+            window_references = self._model.predict_entities(window_text, ["date"])
             window_references = self.convert_to_named_entity_type(window_references)
 
             for entity in window_references:

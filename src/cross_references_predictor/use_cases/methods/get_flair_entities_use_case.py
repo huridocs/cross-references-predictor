@@ -1,15 +1,13 @@
-from pathlib import Path
-from flair.nn import Classifier
-from cross_references_predictor.use_cases.methods.reference_extraction_method_base import ReferenceExtractionMethod
-from cross_references_predictor.configuration import MODELS_PATH
-from cross_references_predictor.domain.reference import Reference
 from flair.data import Sentence, Span
+from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.reference_type import ReferenceType
-
-flair_model = Classifier.load(Path(MODELS_PATH, "flair", "pytorch_model.bin"))
+from cross_references_predictor.use_cases.methods.reference_extraction_method_base import ReferenceExtractionMethod
 
 
 class GetFlairEntitiesUseCase(ReferenceExtractionMethod):
+
+    def __init__(self, model):
+        self._model = model
 
     @staticmethod
     def convert_to_named_entity_type(flair_raw_result: list[Span]) -> list[Reference]:
@@ -39,8 +37,10 @@ class GetFlairEntitiesUseCase(ReferenceExtractionMethod):
         return filtered_references
 
     def get_references(self, text: str) -> list[Reference]:
+        if self._model is None:
+            return []
         sentence = Sentence(text)
-        flair_model.predict(sentence)
+        self._model.predict(sentence)
         flair_raw_result: list[Span] = sentence.get_spans("ner")
         references = self.convert_to_named_entity_type(flair_raw_result)
         references = self.remove_overlapping_references(references)
