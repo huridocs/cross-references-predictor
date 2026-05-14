@@ -17,6 +17,7 @@ class ReferenceDestination(BaseModel):
     known_forms: list[str] = []
     is_name_fixed: bool = False
     top_relevance_entity: Reference | None = None
+    external_id: str | None = None
 
     def is_same_type(self, reference: Reference) -> bool:
         return self.type == reference.type

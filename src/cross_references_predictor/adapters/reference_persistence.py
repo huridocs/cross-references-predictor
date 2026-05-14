@@ -32,7 +32,7 @@ class ReferencePersistence(BaseModel):
     def to_reference(self) -> Reference:
         segment = Segment(
             text=self.segment_text if self.segment_text else "",
-            page_number=self.segment_page_number if self.segment_segment_number else 0,
+            page_number=self.segment_page_number if self.segment_page_number is not None else 0,
             segment_number=self.segment_segment_number if self.segment_segment_number else 0,
             type=self.segment_type,
             pdf_name=self.segment_pdf_name if self.segment_pdf_name else "",

@@ -51,6 +51,7 @@ class ReferenceDestinationUseCase:
                 known_forms=[consolidated.name] + consolidated.alternative_names,
                 is_name_fixed=consolidated.is_from_reference,
                 top_relevance_entity=None,
+                external_id=consolidated.external_id,
             )
             self.prior_groups[consolidated.name] = group
 

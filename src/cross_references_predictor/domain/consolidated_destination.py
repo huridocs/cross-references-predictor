@@ -10,6 +10,7 @@ class ConsolidatedDestination(BaseModel):
     type: ReferenceType
     alternative_names: list[str] = []
     is_from_reference: bool = False
+    external_id: str | None = None
 
     def add_alternative_name(self, name: str):
         if name != self.name and name not in self.alternative_names:

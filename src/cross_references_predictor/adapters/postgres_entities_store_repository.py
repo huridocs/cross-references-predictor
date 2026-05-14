@@ -83,6 +83,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 character_end INTEGER,
                 group_id INTEGER REFERENCES {self.schema_name}.reference_destination(id),
                 segment_id INTEGER REFERENCES {self.schema_name}.segments(id),
+                segment_text TEXT,
                 appearance_count INTEGER,
                 percentage_to_segment_text INTEGER,
                 first_type_appearance BOOLEAN,
@@ -97,6 +98,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 type TEXT NOT NULL,
                 alternative_names TEXT DEFAULT '[]',
                 is_from_reference BOOLEAN DEFAULT FALSE,
+                external_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(name, type)
             )
@@ -115,6 +117,16 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.schema_name}.negative_samples (
+                id SERIAL PRIMARY KEY,
+                destination_id TEXT NOT NULL,
+                segment_text TEXT NOT NULL,
+                pdf_name TEXT,
+                page_number INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         connection.commit()
         connection.close()
 
@@ -128,7 +140,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
         cursor.execute(f"""
             SELECT r.id, r.type, r.text, r.normalized_text, r.character_start, r.character_end,
                    rd.name AS group_name, r.segment_id,
-                   s.text AS segment_text, s.page_number AS segment_page_number,
+                   COALESCE(r.segment_text, s.text) AS segment_text, s.page_number AS segment_page_number,
                    s.segment_number AS segment_segment_number, s.type AS segment_type,
                    s.pdf_name AS segment_pdf_name,
                    s.bounding_box_left AS segment_bounding_box_left,
@@ -199,7 +211,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                                 type = %s, text = %s, normalized_text = %s, character_start = %s,
                                 character_end = %s, appearance_count = %s, percentage_to_segment_text = %s,
                                 first_type_appearance = %s, last_type_appearance = %s, relevance_percentage = %s,
-                                group_id = %s
+                                group_id = %s, segment_text = %s
                             WHERE id = %s
                             """,
                             (
@@ -214,6 +226,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                                 persistence.last_type_appearance,
                                 persistence.relevance_percentage,
                                 group_id,
+                                persistence.segment_text,
                                 entity.id,
                             ),
                         )
@@ -233,9 +246,9 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                     f"""
                     INSERT INTO {self.schema_name}.references (
                         type, text, normalized_text, character_start, character_end, group_id,
-                        segment_id,
+                        segment_id, segment_text,
                         appearance_count, percentage_to_segment_text, first_type_appearance, last_type_appearance, relevance_percentage
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         str(persistence.type),
@@ -245,6 +258,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                         persistence.character_end,
                         group_id,
                         segment_id,
+                        persistence.segment_text,
                         persistence.appearance_count,
                         persistence.percentage_to_segment_text,
                         persistence.first_type_appearance,
@@ -366,257 +380,14 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
             print(f"Error getting segments: {e}")
             return []
 
-    def get_all_references(self) -> list:
-        if not self.exists_schema():
-            return []
-
-        try:
-            connection, cursor = self.get_connection()
-            cursor.execute(f"SELECT id, name FROM {self.schema_name}.reference_destination ORDER BY id")
-            destinations = cursor.fetchall()
-
-            groups = []
-            from cross_references_predictor.domain.reference_destination import ReferenceDestination
-            from cross_references_predictor.domain.reference import Reference
-            from cross_references_predictor.domain.reference_type import ReferenceType
-            from pdf_features import Rectangle
-            from cross_references_predictor.domain.segment import Segment
-
-            for dest_id, dest_name in destinations:
-                destination = ReferenceDestination(
-                    type=ReferenceType.REFERENCE,
-                    name=dest_name,
-                    segment=None,
-                    references=[],
-                )
-
-                cursor.execute(
-                    f"""
-                    SELECT ne.id, ne.text, s.text, s.page_number, s.segment_number, s.type, s.pdf_name, s.bounding_box_left, s.bounding_box_top, s.bounding_box_width, s.bounding_box_height
-                    FROM {self.schema_name}.references ne
-                    LEFT JOIN {self.schema_name}.segments s ON ne.segment_id = s.id
-                    WHERE ne.group_id = %s AND ne.type = 'REFERENCE'
-                    ORDER BY ne.id
-                    """,
-                    (dest_id,),
-                )
-
-                refs = cursor.fetchall()
-                for ref in refs:
-                    ref_id, ref_text = ref[0], ref[1]
-                    (
-                        segment_text,
-                        segment_page_number,
-                        segment_segment_number,
-                        segment_type,
-                        segment_pdf_name,
-                        segment_bounding_box_left,
-                        segment_bounding_box_top,
-                        segment_bounding_box_width,
-                        segment_bounding_box_height,
-                    ) = (
-                        ref[2],
-                        ref[3],
-                        ref[4],
-                        ref[5],
-                        ref[6],
-                        ref[7],
-                        ref[8],
-                        ref[9],
-                        ref[10],
-                    )
-
-                    segment = None
-                    if segment_text is not None or segment_pdf_name is not None:
-                        segment = Segment(
-                            text=segment_text if segment_text else "",
-                            page_number=(segment_page_number if segment_page_number else 0),
-                            segment_number=(segment_segment_number if segment_segment_number else 0),
-                            type=segment_type if segment_type else "Text",
-                            pdf_name=segment_pdf_name if segment_pdf_name else "",
-                            bounding_box=Rectangle.from_width_height(
-                                left=(segment_bounding_box_left if segment_bounding_box_left else 0),
-                                top=(segment_bounding_box_top if segment_bounding_box_top else 0),
-                                width=(segment_bounding_box_width if segment_bounding_box_width else 0),
-                                height=(segment_bounding_box_height if segment_bounding_box_height else 0),
-                            ),
-                        )
-
-                    entity = Reference(type=ReferenceType.REFERENCE, text=ref_text, segment=segment)
-                    entity_dict = entity.model_dump()
-                    entity_dict["id"] = ref_id
-                    destination.references.append(entity_dict)
-
-                groups.append(destination.model_dump())
-
-            connection.close()
-            return groups
-        except Exception as e:
-            print(f"Error getting references: {e}")
-            return []
-
-    def delete_reference(self, reference_id: int) -> bool:
-        if not self.exists_schema():
-            return False
-
-        try:
-            connection, cursor = self.get_connection()
-            cursor.execute(
-                f"DELETE FROM {self.schema_name}.references WHERE id = %s AND type = 'REFERENCE'",
-                (reference_id,),
-            )
-            cursor.execute(f"""
-                DELETE FROM {self.schema_name}.reference_destination
-                WHERE id NOT IN (SELECT DISTINCT group_id FROM {self.schema_name}.references WHERE type = 'REFERENCE' AND group_id IS NOT NULL)
-            """)
-            connection.commit()
-            connection.close()
-            return True
-        except Exception as e:
-            print(f"Error deleting reference: {e}")
-            return False
-
-    def get_reference_by_id(self, reference_id: int) -> dict | None:
-        self.create_database()
-        try:
-            connection, cursor = self.get_connection()
-            cursor.execute(
-                f"""
-                SELECT ne.id, ne.type, ne.text, ne.normalized_text, ne.character_start, ne.character_end,
-                       ne.group_id, ne.segment_id, ne.appearance_count, ne.percentage_to_segment_text,
-                       ne.first_type_appearance, ne.last_type_appearance, ne.relevance_percentage,
-                       rd.name as destination_name,
-                       s.id as segment_id_db, s.text as segment_text, s.page_number, s.segment_number,
-                       s.type as segment_type, s.pdf_name, s.bounding_box_left, s.bounding_box_top,
-                       s.bounding_box_width, s.bounding_box_height, s.page_width, s.page_height
-                FROM {self.schema_name}.references ne
-                LEFT JOIN {self.schema_name}.reference_destination rd ON ne.group_id = rd.id
-                LEFT JOIN {self.schema_name}.segments s ON ne.segment_id = s.id
-                WHERE ne.id = %s AND ne.type = 'REFERENCE'
-                """,
-                (reference_id,),
-            )
-            row = cursor.fetchone()
-            connection.close()
-
-            if row is None:
-                return None
-
-            from cross_references_predictor.domain.reference_type import ReferenceType
-            from pdf_features import Rectangle
-            from cross_references_predictor.domain.segment import Segment
-
-            segment = None
-            if row[14] is not None:
-                segment = Segment(
-                    id=row[14],
-                    text=row[15] or "",
-                    page_number=row[16] or 0,
-                    segment_number=row[17] or 0,
-                    type=row[18] or "Text",
-                    pdf_name=row[19] or "",
-                    bounding_box=Rectangle.from_width_height(
-                        left=row[20] or 0,
-                        top=row[21] or 0,
-                        width=row[22] or 0,
-                        height=row[23] or 0,
-                    ),
-                    page_width=row[24] or 0,
-                    page_height=row[25] or 0,
-                )
-
-            return {
-                "id": row[0],
-                "type": row[1],
-                "text": row[2],
-                "normalized_text": row[3],
-                "character_start": row[4],
-                "character_end": row[5],
-                "group_id": row[6],
-                "segment_id": row[7],
-                "appearance_count": row[8],
-                "percentage_to_segment_text": row[9],
-                "first_type_appearance": row[10],
-                "last_type_appearance": row[11],
-                "relevance_percentage": row[12],
-                "destination_name": row[13],
-                "segment": segment.to_dict() if segment else None,
-            }
-        except Exception as e:
-            print(f"Error getting reference by id: {e}")
-            return None
-
-    def update_reference(self, reference_id: int, updates: dict) -> bool:
-        if not self.exists_schema():
-            return False
-
-        try:
-            connection, cursor = self.get_connection()
-
-            destination_name = updates.get("destination_name")
-            if destination_name is not None:
-                cursor.execute(
-                    f"SELECT id FROM {self.schema_name}.reference_destination WHERE name = %s",
-                    (destination_name,),
-                )
-                row = cursor.fetchone()
-                if row is not None:
-                    group_id = row[0]
-                else:
-                    cursor.execute(
-                        f"INSERT INTO {self.schema_name}.reference_destination (name) VALUES (%s) RETURNING id",
-                        (destination_name,),
-                    )
-                    result = cursor.fetchone()
-                    group_id = result[0] if result else None
-            else:
-                group_id = None
-
-            reference_text = updates.get("text")
-            if group_id is not None and reference_text is not None:
-                cursor.execute(
-                    f"""
-                    UPDATE {self.schema_name}.references
-                    SET text = %s, normalized_text = %s, group_id = %s
-                    WHERE id = %s AND type = 'REFERENCE'
-                    """,
-                    (reference_text, reference_text, group_id, reference_id),
-                )
-            elif reference_text is not None:
-                cursor.execute(
-                    f"""
-                    UPDATE {self.schema_name}.references
-                    SET text = %s, normalized_text = %s
-                    WHERE id = %s AND type = 'REFERENCE'
-                    """,
-                    (reference_text, reference_text, reference_id),
-                )
-            elif group_id is not None:
-                cursor.execute(
-                    f"UPDATE {self.schema_name}.references SET group_id = %s WHERE id = %s AND type = 'REFERENCE'",
-                    (group_id, reference_id),
-                )
-
-            cursor.execute(f"""
-                DELETE FROM {self.schema_name}.reference_destination
-                WHERE id NOT IN (SELECT DISTINCT group_id FROM {self.schema_name}.references WHERE type = 'REFERENCE' AND group_id IS NOT NULL)
-            """)
-
-            connection.commit()
-            connection.close()
-            return True
-        except Exception as e:
-            print(f"Error updating reference: {e}")
-            return False
-
-    def get_consolidated_destinations(self) -> list[ConsolidatedDestination]:
+    def get_all_destinations(self) -> list[ConsolidatedDestination]:
         if not self.exists_schema():
             return []
 
         try:
             connection, cursor = self.get_connection()
             cursor.execute(
-                f"SELECT name, type, alternative_names, is_from_reference FROM {self.schema_name}.consolidated_destinations"
+                f"SELECT name, type, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations ORDER BY name"
             )
             rows = cursor.fetchall()
             connection.close()
@@ -630,6 +401,129 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                         type=ReferenceType(row[1]),
                         alternative_names=alt_names,
                         is_from_reference=bool(row[3]),
+                        external_id=row[4],
+                    )
+                )
+            return destinations
+        except Exception as e:
+            print(f"Error getting all destinations: {e}")
+            return []
+
+    def _get_or_create_segment_id(self, cursor, segment: Segment | None) -> int | None:
+        if not segment:
+            return None
+        cursor.execute(
+            f"""
+            SELECT id FROM {self.schema_name}.segments
+            WHERE pdf_name = %s AND text = %s AND page_number = %s AND segment_number = %s
+            """,
+            (segment.pdf_name, segment.text, segment.page_number, segment.segment_number),
+        )
+        row = cursor.fetchone()
+        if row is not None:
+            return row[0]
+        cursor.execute(
+            f"""
+            INSERT INTO {self.schema_name}.segments (
+                text, page_number, segment_number, type, pdf_name,
+                bounding_box_left, bounding_box_top, bounding_box_width, bounding_box_height,
+                page_width, page_height
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                segment.text,
+                segment.page_number,
+                segment.segment_number,
+                segment.type,
+                segment.pdf_name,
+                segment.bounding_box.left if segment.bounding_box else 0,
+                segment.bounding_box.top if segment.bounding_box else 0,
+                segment.bounding_box.width if segment.bounding_box else 0,
+                segment.bounding_box.height if segment.bounding_box else 0,
+                segment.page_width,
+                segment.page_height,
+            ),
+        )
+        result = cursor.fetchone()
+        return result[0] if result is not None else None
+
+    def save_reference_occurrences(self, references: list[Reference]) -> bool:
+        if not self.exists_schema():
+            self.create_database()
+
+        try:
+            connection, cursor = self.get_connection()
+
+            for entity in references:
+                persistence = ReferencePersistence.from_reference(entity)
+                group_id = self._get_or_create_destination_id(cursor, persistence.group_name)
+                segment_id = self._get_or_create_segment_id(cursor, entity.segment)
+
+                cursor.execute(
+                    f"""
+                    DELETE FROM {self.schema_name}.references
+                    WHERE type = 'REFERENCE'
+                      AND text = %s
+                      AND group_id = %s
+                    """,
+                    (persistence.text, group_id),
+                )
+
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self.schema_name}.references (
+                        type, text, normalized_text, character_start, character_end, group_id,
+                        segment_id, segment_text,
+                        appearance_count, percentage_to_segment_text, first_type_appearance, last_type_appearance, relevance_percentage
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        str(persistence.type),
+                        persistence.text,
+                        persistence.normalized_text,
+                        persistence.character_start,
+                        persistence.character_end,
+                        group_id,
+                        segment_id,
+                        persistence.segment_text,
+                        persistence.appearance_count,
+                        persistence.percentage_to_segment_text,
+                        persistence.first_type_appearance,
+                        persistence.last_type_appearance,
+                        persistence.relevance_percentage,
+                    ),
+                )
+
+            connection.commit()
+            connection.close()
+            return True
+        except Exception as e:
+            print(f"Error saving reference occurrences: {e}")
+            return False
+
+    def get_consolidated_destinations(self) -> list[ConsolidatedDestination]:
+        if not self.exists_schema():
+            return []
+
+        try:
+            connection, cursor = self.get_connection()
+            cursor.execute(
+                f"SELECT name, type, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations"
+            )
+            rows = cursor.fetchall()
+            connection.close()
+
+            destinations = []
+            for row in rows:
+                alt_names = json.loads(row[2]) if row[2] else []
+                destinations.append(
+                    ConsolidatedDestination(
+                        name=row[0],
+                        type=ReferenceType(row[1]),
+                        alternative_names=alt_names,
+                        is_from_reference=bool(row[3]),
+                        external_id=row[4],
                     )
                 )
 
@@ -661,7 +555,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 alt_names_json = json.dumps(dest.alternative_names)
 
                 cursor.execute(
-                    f"SELECT id, alternative_names, is_from_reference FROM {self.schema_name}.consolidated_destinations WHERE name = %s AND type = %s",
+                    f"SELECT id, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations WHERE name = %s AND type = %s",
                     (dest.name, str(dest.type)),
                 )
                 existing = cursor.fetchone()
@@ -673,21 +567,22 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                         if alt not in merged_alt:
                             merged_alt.append(alt)
                     is_ref = bool(existing[2]) or dest.is_from_reference
+                    ext_id = existing[3] or dest.external_id
                     cursor.execute(
                         f"""
                         UPDATE {self.schema_name}.consolidated_destinations
-                        SET alternative_names = %s, is_from_reference = %s
+                        SET alternative_names = %s, is_from_reference = %s, external_id = %s
                         WHERE id = %s
                         """,
-                        (json.dumps(merged_alt), is_ref, existing[0]),
+                        (json.dumps(merged_alt), is_ref, ext_id, existing[0]),
                     )
                 else:
                     cursor.execute(
                         f"""
-                        INSERT INTO {self.schema_name}.consolidated_destinations (name, type, alternative_names, is_from_reference)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO {self.schema_name}.consolidated_destinations (name, type, alternative_names, is_from_reference, external_id)
+                        VALUES (%s, %s, %s, %s, %s)
                         """,
-                        (dest.name, str(dest.type), alt_names_json, dest.is_from_reference),
+                        (dest.name, str(dest.type), alt_names_json, dest.is_from_reference, dest.external_id),
                     )
 
             connection.commit()
@@ -723,7 +618,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 f"""
                 SELECT r.id, r.type, r.text, r.normalized_text, r.character_start, r.character_end,
                        rd.name AS group_name, r.segment_id,
-                       s.text AS segment_text, s.page_number AS segment_page_number,
+                       COALESCE(r.segment_text, s.text) AS segment_text, s.page_number AS segment_page_number,
                        s.segment_number AS segment_segment_number, s.type AS segment_type,
                        s.pdf_name AS segment_pdf_name,
                        s.bounding_box_left AS segment_bounding_box_left,
@@ -892,3 +787,63 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
         except Exception as e:
             print(f"Error deleting detection script: {e}")
             return False
+
+    def save_negative_samples(self, destination_id: str, segments: list[Segment]) -> bool:
+        if not self.exists_schema():
+            self.create_database()
+
+        try:
+            connection, cursor = self.get_connection()
+
+            for segment in segments:
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self.schema_name}.negative_samples
+                        (destination_id, segment_text, pdf_name, page_number)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (destination_id, segment.text, segment.pdf_name, segment.page_number),
+                )
+
+            connection.commit()
+            connection.close()
+            return True
+        except Exception as e:
+            print(f"Error saving negative samples: {e}")
+            return False
+
+    def get_negative_samples(self, destination_id: str) -> list[Segment]:
+        if not self.exists_schema():
+            return []
+
+        try:
+            connection, cursor = self.get_connection()
+            cursor.execute(
+                f"""
+                SELECT segment_text, pdf_name, page_number
+                FROM {self.schema_name}.negative_samples
+                WHERE destination_id = %s
+                """,
+                (destination_id,),
+            )
+            rows = cursor.fetchall()
+            connection.close()
+
+            segments = []
+            for row in rows:
+                from pdf_features import Rectangle
+
+                segments.append(
+                    Segment(
+                        text=row[0],
+                        page_number=row[2] if row[2] is not None else 0,
+                        segment_number=0,
+                        type="Text",
+                        pdf_name=row[1] if row[1] else "",
+                        bounding_box=Rectangle.from_width_height(left=0, top=0, width=0, height=0),
+                    )
+                )
+            return segments
+        except Exception as e:
+            print(f"Error getting negative samples: {e}")
+            return []

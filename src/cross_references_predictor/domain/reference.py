@@ -81,6 +81,7 @@ class Reference(BaseModel):
             ReferenceType.DATE: lambda x: self.normalize_date(x, language),
             ReferenceType.LAW: self.normalize_text,
             ReferenceType.DOCUMENT_CODE: lambda x: x.strip(),
+            ReferenceType.REFERENCE: self.normalize_text,
         }
 
         self.normalized_text = normalization_functions[self.type](self.text)

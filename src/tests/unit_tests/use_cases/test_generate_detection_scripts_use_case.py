@@ -76,8 +76,8 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
         self.mock_repository.save_detection_script.assert_called_once()
 
     def test_execute_creates_separate_scripts_for_different_destinations(self):
-        segment1 = self._create_segment("Reference to Document A here", "doc1.pdf")
-        segment2 = self._create_segment("Reference to Document B here", "doc2.pdf")
+        segment1 = self._create_segment("Reference to Doc A here", "doc1.pdf")
+        segment2 = self._create_segment("Reference to Doc B here", "doc2.pdf")
 
         ref1 = self._create_reference(1, "Doc A", "Doc A", segment1)
         ref2 = self._create_reference(2, "Doc B", "Doc B", segment2)
@@ -85,9 +85,9 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
         self.mock_repository.get_references_by_type.return_value = [ref1, ref2]
         self.mock_llm_service.query.side_effect = [
             "(?P<reference>Doc\\s+A)",
+            "def is_reference(match_text, sentence_text, paragraph_text):\n    return True",
             "(?P<reference>Doc\\s+B)",
-            "(?P<reference>Doc\\s+A)",
-            "(?P<reference>Doc\\s+B)",
+            "def is_reference(match_text, sentence_text, paragraph_text):\n    return True",
         ]
 
         result = self.use_case.execute()
@@ -118,20 +118,13 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
         ref1 = self._create_reference(1, "Topic A", "Topic A", segment)
         ref2 = self._create_reference(2, "topic a", "Topic A", segment)
 
-        destination_info = DestinationInfo(
-            type=ReferenceType.REFERENCE,
-            name="Topic A",
-            segment_text="Section about topic A",
-            segment_pdf_name="document.pdf",
-        )
-
         groups = self.use_case._group_references_by_destination([ref1, ref2])
 
         self.assertEqual(len(groups), 1)
         grouped_dest = list(groups.keys())[0]
         self.assertEqual(grouped_dest.name, "Topic A")
-        self.assertEqual(grouped_dest.segment_text, "Section about topic A")
-        self.assertEqual(grouped_dest.segment_pdf_name, "document.pdf")
+        self.assertIsNone(grouped_dest.segment_text)
+        self.assertIsNone(grouped_dest.segment_pdf_name)
 
     def test_group_references_by_destination_without_segment(self):
         ref1 = self._create_reference(1, "Some Reference", "Some Reference", None)
@@ -159,11 +152,11 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
         segment = self._create_segment("This contains the reference to Section 1 here.")
         ref = self._create_reference(1, "Section 1", "Section 1", segment)
 
-        samples = self.use_case._get_positive_samples([ref])
+        samples = self.use_case._get_positive_samples([ref], r"(?P<reference>Section\s+1)")
 
         self.assertGreater(len(samples), 0)
         for sample in samples:
-            self.assertIn("Section 1", sample)
+            self.assertIn("Section 1", sample["text"])
 
     def test_get_negative_samples_excludes_target_refs(self):
         segment1 = self._create_segment("Reference to Section 1 in doc")
@@ -174,10 +167,10 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
 
         all_refs = [target_ref, other_ref]
 
-        samples = self.use_case._get_negative_samples([target_ref], all_refs)
+        samples = self.use_case._get_negative_samples([target_ref], all_refs, r"(?P<reference>Section\s+1)")
 
         for sample in samples:
-            self.assertNotIn("Section 1", sample)
+            self.assertNotIn("Section 1", sample["sentence"])
 
     def test_generate_regex_calls_llm_with_correct_prompt(self):
         segment = self._create_segment("Example paragraph mentioning Section 1", "doc.pdf")
@@ -201,7 +194,7 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
 
         self.mock_llm_service.query.assert_called_once()
         call_args = self.mock_llm_service.query.call_args[0][0]
-        self.assertIn("doc.pdf", call_args)
+        self.assertIn("Destination Document: Section 1", call_args)
         self.assertIn("Section 1", call_args)
 
     def test_generate_disambiguation_script_calls_llm(self):
@@ -215,17 +208,28 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
         self.mock_llm_service.query.return_value = """def is_reference(match_text: str, sentence_text: str, paragraph_text: str) -> bool:
     return True"""
 
+        positive_samples = [
+            {"text": "Section 1", "sentence": "...Section 1...", "paragraph_text": "...Section 1..."},
+        ]
+        negative_samples = [
+            {
+                "text": "Section 2",
+                "sentence": "...Section 2...",
+                "destination_entity_title": "Section 2",
+                "paragraph_text": "...Section 2...",
+            },
+        ]
+
         script = self.use_case._generate_disambiguation_script(
             destination_info,
             "(?P<reference>Section 1)",
-            ["Match: 'Section 1' | Sentence: '...Section 1...'"],
-            ["Sentence: '...Section 2...'"],
+            positive_samples,
+            negative_samples,
         )
 
         self.mock_llm_service.query.assert_called_once()
         call_args = self.mock_llm_service.query.call_args[0][0]
         self.assertIn("Section 1", call_args)
-        self.assertIn("Target section text", call_args)
 
     def test_destination_info_equality(self):
         dest1 = DestinationInfo(

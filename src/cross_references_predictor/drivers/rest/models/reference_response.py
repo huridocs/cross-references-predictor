@@ -2,8 +2,8 @@ from pydantic import BaseModel
 
 from cross_references_predictor.domain.reference import Reference
 from cross_references_predictor.domain.reference_type import ReferenceType
-from cross_references_predictor.drivers.rest.response_entities.bounding_box_response import BoundingBoxResponse
-from cross_references_predictor.drivers.rest.response_entities.segment_response import SegmentResponse
+from cross_references_predictor.drivers.rest.models.bounding_box_response import BoundingBoxResponse
+from cross_references_predictor.drivers.rest.models.segment_response import SegmentResponse
 
 
 class ReferenceResponse(BaseModel):

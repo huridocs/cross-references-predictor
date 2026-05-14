@@ -12,14 +12,15 @@ from cross_references_predictor.adapters.pdf_visualization_repository import PDF
 from cross_references_predictor.adapters.postgres_entities_store_repository import PostgresReferencesStoreRepository
 from cross_references_predictor.adapters.model_loader_repository import ConcreteModelLoader
 
-from collections import defaultdict
-
 from cross_references_predictor.domain.consolidated_destination import ConsolidatedDestination
 from cross_references_predictor.domain.reference import Reference
+from cross_references_predictor.domain.reference_type import ReferenceType
 from cross_references_predictor.domain.segment import Segment
 from cross_references_predictor.drivers.rest.catch_exceptions import catch_exceptions
-from cross_references_predictor.drivers.rest.response_entities.cross_references_response import CrossReferencesResponse
-from cross_references_predictor.drivers.rest.save_references_request import SaveReferencesRequest
+from cross_references_predictor.drivers.rest.models.cross_references_response import CrossReferencesResponse
+from cross_references_predictor.drivers.rest.models.save_destinations_request import SaveDestinationsRequest
+from cross_references_predictor.drivers.rest.models.save_reference_occurrences_request import SaveReferenceOccurrencesRequest
+from cross_references_predictor.drivers.rest.models.save_negative_samples_request import SaveNegativeSamplesRequest
 
 from cross_references_predictor.use_cases.generate_detection_scripts_use_case import GenerateDestinationDetectionsUseCase
 from cross_references_predictor.use_cases.get_geolocation_use_case import GetGeolocationUseCase
@@ -80,7 +81,11 @@ async def get_cross_references(
     consolidated_destinations = store_repository.get_consolidated_destinations() if store_repository else list()
 
     model_loader = ConcreteModelLoader()
-    get_references_use_case = GetReferencesUseCase(language, model_loader=model_loader)
+    get_references_use_case = GetReferencesUseCase(
+        language,
+        model_loader=model_loader,
+        references_repository=store_repository,
+    )
     references = get_references_use_case.get_references_from_segments(segments)
 
     if file and pdf_path:
@@ -100,6 +105,7 @@ async def get_cross_references(
                     type=dest.type,
                     alternative_names=alternative_names,
                     is_from_reference=False,
+                    external_id=dest.external_id,
                 )
             )
         store_repository.save_consolidated_destinations(new_consolidated)
@@ -167,34 +173,95 @@ async def geolocation(location: str = Form(...)):
     return GetGeolocationUseCase().get_coordinates(location)
 
 
-@app.post("/save_references")
+@app.post("/destinations")
 @catch_exceptions
-async def save_references(request: SaveReferencesRequest):
-    parsed_references = [Reference(**ref) for ref in request.references]
+async def save_destinations(request: SaveDestinationsRequest):
     store_repository = PostgresReferencesStoreRepository(request.namespace, request.language)
-    success = store_repository.save_references(parsed_references)
+    destinations = [
+        ConsolidatedDestination(
+            name=seed.name,
+            type=seed.type,
+            alternative_names=seed.alternative_names,
+            is_from_reference=True,
+            external_id=seed.external_id,
+        )
+        for seed in request.destinations
+    ]
+    success = store_repository.save_consolidated_destinations(destinations)
+    if success:
+        return {"status": "success", "message": f"Saved {len(destinations)} destinations"}
+    else:
+        return {"status": "error", "message": "Failed to save destinations"}, 400
 
-    destinations_by_name = defaultdict(list)
-    for ref in parsed_references:
-        destinations_by_name[ref.destination].append(ref)
 
-    consolidated = []
-    for dest_name, refs in destinations_by_name.items():
-        type_ = refs[0].type
-        consolidated.append(
-            ConsolidatedDestination(
-                name=dest_name,
-                type=type_,
-                alternative_names=[ref.text for ref in refs if ref.text != dest_name],
-                is_from_reference=True,
+@app.get("/destinations")
+@catch_exceptions
+async def get_destinations(namespace: str = "default_namespace", language: str = "en"):
+    store_repository = PostgresReferencesStoreRepository(namespace, language)
+    destinations = store_repository.get_all_destinations()
+    return [
+        {
+            "name": dest.name,
+            "type": str(dest.type),
+            "external_id": dest.external_id,
+            "alternative_names": dest.alternative_names,
+            "is_from_reference": dest.is_from_reference,
+        }
+        for dest in destinations
+    ]
+
+
+@app.post("/reference_occurrences")
+@catch_exceptions
+async def save_reference_occurrences(request: SaveReferenceOccurrencesRequest):
+    references = []
+    for occ in request.occurrences:
+        segment = Segment(
+            text=occ.segment_text or "",
+            page_number=occ.page or 0,
+            segment_number=0,
+            type="Text",
+            pdf_name=occ.pdf_name or "",
+        )
+        references.append(
+            Reference(
+                type=ReferenceType.REFERENCE,
+                text=occ.text,
+                destination=occ.destination,
+                segment=segment,
             )
         )
-    store_repository.save_consolidated_destinations(consolidated)
+
+    store_repository = PostgresReferencesStoreRepository(request.namespace, request.language)
+    success = store_repository.save_reference_occurrences(references)
 
     if success:
-        return {"status": "success", "message": f"Saved {len(parsed_references)} references"}
+        return {"status": "success", "message": f"Saved {len(references)} reference occurrences"}
     else:
-        return {"status": "error", "message": "Failed to save references"}, 400
+        return {"status": "error", "message": "Failed to save reference occurrences"}, 400
+
+
+@app.post("/negative_samples")
+@catch_exceptions
+async def save_negative_samples(request: SaveNegativeSamplesRequest):
+    segments = [
+        Segment(
+            text=seg.text,
+            page_number=seg.page or 0,
+            segment_number=0,
+            type="Text",
+            pdf_name=seg.pdf_name or "",
+        )
+        for seg in request.segments
+    ]
+
+    store_repository = PostgresReferencesStoreRepository(request.namespace, request.language)
+    success = store_repository.save_negative_samples(request.destination_id, segments)
+
+    if success:
+        return {"status": "success", "message": f"Saved {len(segments)} negative samples"}
+    else:
+        return {"status": "error", "message": "Failed to save negative samples"}, 400
 
 
 @app.post("/reset_destinations")
@@ -206,60 +273,6 @@ async def reset_destinations(namespace: str = Form(...), language: str = Form("e
         return {"status": "success", "message": "Consolidated destinations reset successfully"}
     else:
         return {"status": "error", "message": "Failed to reset consolidated destinations"}, 400
-
-
-@app.get("/references")
-@catch_exceptions
-async def get_references(namespace: str = "default_namespace", language: str = "en"):
-    store_repository = PostgresReferencesStoreRepository(namespace, language)
-    return store_repository.get_all_references()
-
-
-@app.get("/references/{reference_id}")
-@catch_exceptions
-async def get_reference(reference_id: int, namespace: str = "default_namespace", language: str = "en"):
-    store_repository = PostgresReferencesStoreRepository(namespace, language)
-    reference = store_repository.get_reference_by_id(reference_id)
-    if reference is None:
-        raise HTTPException(status_code=404, detail="Reference not found")
-    return reference
-
-
-@app.patch("/references/{reference_id}")
-@catch_exceptions
-async def update_reference(
-    reference_id: int,
-    namespace: str = Form(...),
-    language: str = Form("en"),
-    text: str = Form(None),
-    destination_name: str = Form(None),
-):
-    store_repository = PostgresReferencesStoreRepository(namespace, language)
-    updates = {}
-    if text is not None:
-        updates["text"] = text
-    if destination_name is not None:
-        updates["destination_name"] = destination_name
-
-    if not updates:
-        return {"status": "error", "message": "No updates provided"}
-
-    success = store_repository.update_reference(reference_id, updates)
-    if success:
-        return {"status": "success", "message": "Reference updated successfully"}
-    else:
-        return {"status": "error", "message": "Failed to update reference"}, 400
-
-
-@app.post("/delete_reference")
-@catch_exceptions
-async def delete_reference(namespace: str = Form(...), reference_id: int = Form(...), language: str = "en"):
-    store_repository = PostgresReferencesStoreRepository(namespace, language)
-    success = store_repository.delete_reference(reference_id)
-    if success:
-        return {"status": "success", "message": "Reference deleted successfully"}
-    else:
-        return {"status": "error", "message": "Failed to delete reference"}
 
 
 @app.post("/generate_detection_scripts")

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from cross_references_predictor.drivers.rest.response_entities.reference_response import ReferenceResponse
+from cross_references_predictor.drivers.rest.models.reference_response import ReferenceResponse
 
 
 class ReferenceTextResponse(BaseModel):

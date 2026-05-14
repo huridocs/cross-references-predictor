@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 
 from cross_references_predictor.domain.reference_destination import ReferenceDestination
-from cross_references_predictor.drivers.rest.response_entities.reference_text_response import ReferenceTextResponse
-from cross_references_predictor.drivers.rest.response_entities.reference_response import ReferenceResponse
+from cross_references_predictor.drivers.rest.models.reference_text_response import ReferenceTextResponse
+from cross_references_predictor.drivers.rest.models.reference_response import ReferenceResponse
 
 
 class CrossReferencesResponse(BaseModel):
@@ -28,6 +28,7 @@ class CrossReferencesResponse(BaseModel):
                     "name": group.name,
                     "type": str(group.type),
                     "destination_id": group.destination_id,
+                    "external_id": group.external_id,
                     "references": entity_texts,
                     "top_relevance_entity": (
                         ReferenceResponse.from_reference(group.top_relevance_entity).model_dump()

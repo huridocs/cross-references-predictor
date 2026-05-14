@@ -2,8 +2,8 @@ from pydantic import BaseModel
 
 from cross_references_predictor.domain.reference_destination import ReferenceDestination
 from cross_references_predictor.domain.reference_type import ReferenceType
-from cross_references_predictor.drivers.rest.response_entities.reference_text_response import ReferenceTextResponse
-from cross_references_predictor.drivers.rest.response_entities.reference_response import ReferenceResponse
+from cross_references_predictor.drivers.rest.models.reference_text_response import ReferenceTextResponse
+from cross_references_predictor.drivers.rest.models.reference_response import ReferenceResponse
 
 
 class ReferenceDestinationResponse(BaseModel):

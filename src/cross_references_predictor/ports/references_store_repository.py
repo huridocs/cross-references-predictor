@@ -33,18 +33,6 @@ class ReferencesStoreRepository(ABC):
         pass
 
     @abstractmethod
-    def get_reference_by_id(self, reference_id: int) -> dict | None:
-        pass
-
-    @abstractmethod
-    def update_reference(self, reference_id: int, updates: dict) -> bool:
-        pass
-
-    @abstractmethod
-    def delete_reference(self, reference_id: int) -> bool:
-        pass
-
-    @abstractmethod
     def get_consolidated_destinations(self) -> list[ConsolidatedDestination]:
         pass
 
@@ -54,6 +42,14 @@ class ReferencesStoreRepository(ABC):
 
     @abstractmethod
     def reset_consolidated_destinations(self) -> bool:
+        pass
+
+    @abstractmethod
+    def get_all_destinations(self) -> list[ConsolidatedDestination]:
+        pass
+
+    @abstractmethod
+    def save_reference_occurrences(self, references: list[Reference]) -> bool:
         pass
 
     @abstractmethod
@@ -70,4 +66,12 @@ class ReferencesStoreRepository(ABC):
 
     @abstractmethod
     def delete_detection_script(self, destination_id: str) -> bool:
+        pass
+
+    @abstractmethod
+    def save_negative_samples(self, destination_id: str, segments: list[Segment]) -> bool:
+        pass
+
+    @abstractmethod
+    def get_negative_samples(self, destination_id: str) -> list[Segment]:
         pass

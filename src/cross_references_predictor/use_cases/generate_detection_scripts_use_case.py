@@ -3,7 +3,6 @@ import re
 from cross_references_predictor.domain.destination_detection import DestinationDetection
 from cross_references_predictor.domain.destination_info import DestinationInfo
 from cross_references_predictor.domain.reference import Reference
-from cross_references_predictor.domain.reference_destination import ReferenceDestination
 from cross_references_predictor.domain.reference_type import ReferenceType
 from cross_references_predictor.ports.llm_service import LLMService
 from cross_references_predictor.ports.references_store_repository import ReferencesStoreRepository
@@ -15,9 +14,9 @@ REGEX_PROMPT = """Objective: Create a Python-compatible regular expression to id
 
 Target Metadata:
 
-    Destination Document: {destination_pdf_name}
+    Destination Document: {destination_name}
 
-    Target Section/Text: {destination_segment_text}
+    Target Section/Text: {destination_text}
 
 Specific Reference Strings to Match:
 The regex must specifically capture the following variations that point to the target:
@@ -26,6 +25,7 @@ The regex must specifically capture the following variations that point to the t
 Examples of paragraphs that contain references to the target:
 
 {paragraph_examples}
+{failing_regex_section}
 Requirements:
 
     1. Core Matching Strategy (Prioritize Recall)
@@ -59,7 +59,51 @@ Requirements:
     5. Strict Output Format
     
         OUTPUT ONLY THE RAW REGEX STRING.
-    
+
+        DO NOT include markdown formatting, code blocks (no backticks), quotes, or any explanatory text.
+"""
+
+
+ENTITY_REGEX_PROMPT = """Objective: Create a Python-compatible regular expression to identify references to an entity document within a large corpus.
+
+Target Entity: {destination_name}
+
+Reference Strings to Match:
+The regex must specifically capture the following reference variations that point to this entity:
+{reference_texts_list}
+
+Requirements:
+
+    1. Core Matching Strategy (Prioritize Recall)
+
+        Target the Essence: Extract only the core, identifying elements of the reference text.
+
+        Maximize Recall: Optimize for high recall over strict precision. You must match any reasonable variation of the target, including alternative spellings, plurals, and partial text.
+
+    2. Human Error & Future-Proofing
+
+        Anticipate Typos & Variations: Humans make mistakes. Use optional characters (?), character classes ([...]), or alternations (|) to account for common typos and variations.
+
+        Abbreviations & Equivalents: Account for common abbreviations (e.g., "St" and "Street", "N" and "North").
+
+    3. Pattern Mechanics
+
+        Whitespace & Punctuation: Use \\s+ to handle variable whitespace, tabs, or newlines. Allow optional punctuation between words.
+
+        Word Boundaries (\\b): Apply \\b to isolate short strings or numbers.
+
+    4. Syntax
+
+        Compatibility: The generated regex MUST be 100% compatible with Python's standard re module.
+
+        Internal Grouping: Use non-capturing groups (?:...) for any internal alternations.
+
+        Final Capture: Wrap the entire pattern within a named capturing group "reference": (?P<reference>...)
+
+    5. Strict Output
+
+        OUTPUT ONLY THE RAW REGEX STRING.
+
         DO NOT include markdown formatting, code blocks (no backticks), quotes, or any explanatory text.
 """
 
@@ -78,12 +122,12 @@ Objective: Develop a robust Python validation function that distinguishes betwee
 
 [GROUND TRUTH DATA]
 
-    Positive Samples (True Matches - each sample shows the sentence containing the match):
+    Positive Samples (True Matches — each sample shows the sentence containing the match):
     {positive_samples}
 
 
 [NEGATIVE SAMPLES]
-    Negative Samples (Distractors to Avoid - each sample shows the sentence containing the match):
+    Negative Samples (Distractors to Avoid — each sample shows the sentence containing the match):
     {negative_samples}
 
 [LOGIC REQUIREMENTS]
@@ -140,24 +184,20 @@ class GenerateDestinationDetectionsUseCase:
         self,
         references: list[Reference],
     ) -> dict[DestinationInfo, list[Reference]]:
-        groups: dict[DestinationInfo, list[Reference]] = {}
+        groups: dict[str, list[Reference]] = {}
 
         for ref in references:
-            if not ref.segment:
-                destination_info = DestinationInfo(type=ReferenceType.REFERENCE, name=ref.destination or ref.text)
-            else:
-                destination_info = DestinationInfo(
-                    type=ReferenceType.REFERENCE,
-                    name=ref.destination or ref.text,
-                    segment_text=ref.segment.text if ref.segment else None,
-                    segment_pdf_name=ref.segment.pdf_name if ref.segment else None,
-                )
+            name = ref.destination or ref.text
+            groups.setdefault(name, []).append(ref)
 
-            if destination_info not in groups:
-                groups[destination_info] = []
-            groups[destination_info].append(ref)
+        result: dict[DestinationInfo, list[Reference]] = {}
+        for name, refs in groups.items():
+            result[DestinationInfo(type=ReferenceType.REFERENCE, name=name)] = refs
 
-        return groups
+        return result
+
+    def _has_segment_text(self, refs: list[Reference]) -> bool:
+        return any(ref.segment and ref.segment.text for ref in refs)
 
     def _generate_script_for_destination(
         self,
@@ -169,17 +209,22 @@ class GenerateDestinationDetectionsUseCase:
             return None
 
         reference_texts = self._get_reference_texts(refs)
-        paragraph_examples = self._get_paragraph_examples(refs)
-        regex = self._generate_regex(destination_info, reference_texts, paragraph_examples)
+        has_segment = self._has_segment_text(refs)
 
-        positive_samples = self._get_positive_samples(refs)
-        negative_samples = self._get_negative_samples(refs, all_references)
-        script = self._generate_disambiguation_script(
-            destination_info,
-            regex,
-            positive_samples,
-            negative_samples,
-        )
+        if has_segment:
+            paragraph_examples = self._get_paragraph_examples(refs)
+            regex = self._generate_regex_with_retry(destination_info, reference_texts, paragraph_examples)
+            positive_samples = self._get_positive_samples(refs, regex)
+            negative_samples = self._get_negative_samples(refs, all_references, regex)
+            script = self._generate_disambiguation_script_with_retry(
+                destination_info,
+                regex,
+                positive_samples,
+                negative_samples,
+            )
+        else:
+            regex = self._generate_regex_for_entity_reference(destination_info, reference_texts)
+            script = ""
 
         return DestinationDetection.from_destination_and_refs(
             destination=destination_info,
@@ -206,20 +251,82 @@ class GenerateDestinationDetectionsUseCase:
                 break
         return examples
 
-    def _generate_regex(
+    def _generate_regex_with_retry(
         self,
         destination_info: DestinationInfo,
         reference_texts: list[str],
         paragraph_examples: list[str],
     ) -> str:
+        regex = self._generate_regex(destination_info, reference_texts, paragraph_examples)
+        if self._validate_regex(regex, reference_texts):
+            return regex
+
+        regex = self._generate_regex(
+            destination_info,
+            reference_texts,
+            paragraph_examples,
+            think=True,
+            failing_regex=regex,
+        )
+        if self._validate_regex(regex, reference_texts):
+            return regex
+
+        return regex
+
+    @staticmethod
+    def _validate_regex(regex: str, reference_texts: list[str]) -> bool:
+        try:
+            compiled = re.compile(regex, re.IGNORECASE | re.DOTALL)
+            return all(compiled.search(ref) for ref in reference_texts)
+        except re.error:
+            return False
+
+    def _generate_regex(
+        self,
+        destination_info: DestinationInfo,
+        reference_texts: list[str],
+        paragraph_examples: list[str],
+        think: bool = False,
+        failing_regex: str | None = None,
+    ) -> str:
         reference_texts_str = "\n".join([f"  - {text}" for text in reference_texts])
-        paragraph_examples_str = "\n\n".join([f"Example {i+1}:\n{exp}" for i, exp in enumerate(paragraph_examples)])
+        examples_str = "\n\n".join([f"Example {i+1}:\n{exp[:500]}" for i, exp in enumerate(paragraph_examples[:2])])
+
+        failing_regex_section = ""
+        if failing_regex:
+            failing_regex_section = (
+                f"\n\nPreviously Generated Regex (FAILED):\n\n"
+                f"The following regex was generated but did not match all reference strings:\n"
+                f"{failing_regex}\n\n"
+                f"Please generate a different regex that matches ALL reference strings listed above."
+            )
 
         prompt = REGEX_PROMPT.format(
-            destination_pdf_name=destination_info.segment_pdf_name or "Unknown Document",
-            destination_segment_text=destination_info.segment_text or destination_info.name,
+            destination_name=destination_info.name,
+            destination_text=destination_info.name,
             reference_texts_list=reference_texts_str,
-            paragraph_examples=paragraph_examples_str,
+            paragraph_examples=examples_str or "No examples available.",
+            failing_regex_section=failing_regex_section,
+        )
+
+        response = self.llm_service.query(prompt, think=think)
+        regex = response.strip().strip("`").strip('"').strip("'")
+
+        if not regex.startswith("(?P<reference>"):
+            regex = f"(?P<reference>{regex})"
+
+        return regex
+
+    def _generate_regex_for_entity_reference(
+        self,
+        destination_info: DestinationInfo,
+        reference_texts: list[str],
+    ) -> str:
+        reference_texts_str = "\n".join([f"  - {text}" for text in reference_texts])
+
+        prompt = ENTITY_REGEX_PROMPT.format(
+            destination_name=destination_info.name,
+            reference_texts_list=reference_texts_str,
         )
 
         response = self.llm_service.query(prompt)
@@ -230,66 +337,204 @@ class GenerateDestinationDetectionsUseCase:
 
         return regex
 
-    def _get_positive_samples(self, refs: list[Reference]) -> list[str]:
-        samples = []
-        for ref in refs:
-            segment_text = ref.segment.text if ref.segment else ""
-            if segment_text and segment_text not in samples:
-                sentences = self._split_into_sentences(segment_text)
-                for sentence in sentences:
-                    if ref.text in sentence:
-                        samples.append(f"Match: '{ref.text}' | Sentence: '{sentence}'")
-                        break
-        return samples[:10]
+    def _get_positive_samples(self, refs: list[Reference], regex: str) -> list[dict]:
+        try:
+            compiled = re.compile(regex)
+        except re.error:
+            compiled = None
+
+        samples: list[dict] = []
+        for ref in refs[:10]:
+            paragraph_text = ref.segment.text if ref.segment else ""
+            if compiled:
+                match = compiled.search(paragraph_text)
+                if match:
+                    sentence = self._find_sentence_with_match(paragraph_text, match.start(), match.end())
+                    samples.append(
+                        {
+                            "text": match.group("reference"),
+                            "sentence": sentence,
+                            "paragraph_text": paragraph_text,
+                        }
+                    )
+                    continue
+
+            sentence = paragraph_text
+            samples.append(
+                {
+                    "text": ref.text,
+                    "sentence": sentence,
+                    "paragraph_text": paragraph_text,
+                }
+            )
+
+        return samples
 
     def _get_negative_samples(
         self,
         target_refs: list[Reference],
         all_references: list[Reference],
-    ) -> list[str]:
+        regex: str,
+    ) -> list[dict]:
         target_ids = {ref.id for ref in target_refs if ref.id is not None}
-        target_texts = {ref.text for ref in target_refs}
-        negative_samples = []
+        compiled = re.compile(regex)
+        negative_samples: list[dict] = []
 
+        # 1. Try explicit negative samples from repository
+        destination_name = target_refs[0].destination or target_refs[0].text
+        try:
+            explicit_negative_segments = self.repository.get_negative_samples(destination_name)
+            for segment in explicit_negative_segments:
+                paragraph_text = segment.text
+                if not paragraph_text:
+                    continue
+                m = compiled.search(paragraph_text)
+                if m:
+                    sentence = self._find_sentence_with_match(paragraph_text, m.start(), m.end())
+                    negative_samples.append(
+                        {
+                            "text": m.group("reference"),
+                            "sentence": sentence,
+                            "destination_entity_title": "Unknown",
+                            "paragraph_text": paragraph_text,
+                        }
+                    )
+                if len(negative_samples) >= 10:
+                    return negative_samples
+        except Exception:
+            pass
+
+        # 2. Find false positives in other references' paragraphs
         other_refs = [r for r in all_references if r.id not in target_ids]
-
         for ref in other_refs:
-            segment_text = ref.segment.text if ref.segment else ""
-            if not segment_text:
+            paragraph_text = ref.segment.text if ref.segment else ""
+            if not paragraph_text:
                 continue
 
-            sentences = self._split_into_sentences(segment_text)
-            for sentence in sentences:
-                has_match = False
-                for target_text in target_texts:
-                    if target_text in sentence:
-                        has_match = True
-                        break
-
-                if has_match:
-                    sample = f"Sentence: '{sentence}'"
-                    if sample not in negative_samples:
-                        negative_samples.append(sample)
-                        break
+            m = compiled.search(paragraph_text)
+            if m:
+                sentence = self._find_sentence_with_match(paragraph_text, m.start(), m.end())
+                negative_samples.append(
+                    {
+                        "text": m.group("reference"),
+                        "sentence": sentence,
+                        "destination_entity_title": ref.destination or ref.text,
+                        "paragraph_text": paragraph_text,
+                    }
+                )
 
             if len(negative_samples) >= 10:
                 break
 
-        return negative_samples
+        # 3. Fallback: use other references' paragraphs with substring matches
+        if not negative_samples:
+            target_texts = {ref.text for ref in target_refs}
+            for ref in other_refs:
+                paragraph_text = ref.segment.text if ref.segment else ""
+                if not paragraph_text:
+                    continue
+
+                sentences = self._split_into_sentences(paragraph_text)
+                for sentence in sentences:
+                    has_match = False
+                    for target_text in target_texts:
+                        if target_text in sentence:
+                            has_match = True
+                            break
+
+                    if has_match:
+                        negative_samples.append(
+                            {
+                                "text": target_texts.pop() if target_texts else "",
+                                "sentence": sentence,
+                                "destination_entity_title": ref.destination or ref.text,
+                                "paragraph_text": paragraph_text,
+                            }
+                        )
+                        break
+
+                if len(negative_samples) >= 5:
+                    break
+
+        return negative_samples[:10]
+
+    def _generate_disambiguation_script_with_retry(
+        self,
+        destination_info: DestinationInfo,
+        regex: str,
+        positive_samples: list[dict],
+        negative_samples: list[dict],
+    ) -> str:
+        script = self._generate_disambiguation_script(destination_info, regex, positive_samples, negative_samples)
+        if self._validate_script(script, positive_samples, regex):
+            return script
+
+        for _ in range(2):
+            script = self._generate_disambiguation_script(destination_info, regex, positive_samples, negative_samples)
+            if self._validate_script(script, positive_samples, regex):
+                return script
+
+        return script
+
+    @staticmethod
+    def _validate_script(script: str, positive_samples: list[dict], regex: str) -> bool:
+        try:
+            namespace = {}
+            exec(script, namespace)
+            is_reference = namespace.get("is_reference")
+
+            if not is_reference or not callable(is_reference):
+                return False
+
+            compiled = re.compile(regex)
+            true_count = 0
+            for sample in positive_samples:
+                paragraph_text = sample.get("paragraph_text", "")
+                if not paragraph_text:
+                    continue
+
+                match = compiled.search(paragraph_text)
+                if match:
+                    sentence = GenerateDestinationDetectionsUseCase._find_sentence_with_match(
+                        paragraph_text, match.start(), match.end()
+                    )
+                    match_text = match.group("reference")
+                    try:
+                        result = is_reference(match_text, sentence, paragraph_text)
+                        if result:
+                            true_count += 1
+                    except Exception:
+                        return False
+
+            return true_count > 0
+        except Exception:
+            return False
 
     def _generate_disambiguation_script(
         self,
         destination_info: DestinationInfo,
         regex: str,
-        positive_samples: list[str],
-        negative_samples: list[str],
+        positive_samples: list[dict],
+        negative_samples: list[dict],
     ) -> str:
-        positive_samples_str = "\n".join([f"    - {sample}" for sample in positive_samples]) or "    (none available)"
-        negative_samples_str = "\n".join([f"    - {sample}" for sample in negative_samples]) or "    (none available)"
+        positive_samples_str = (
+            "\n".join([f'- {{"text": "{s["text"]}", "sentence": "{s["sentence"]}"}}' for s in positive_samples])
+            or "    (none available)"
+        )
+
+        negative_samples_str = (
+            "\n".join(
+                [
+                    f'- {{"text": "{s["text"]}", "sentence": "{s["sentence"]}", "destination_entity_title": "{s["destination_entity_title"]}"}}'
+                    for s in negative_samples
+                ]
+            )
+            or "    (none available)"
+        )
 
         prompt = TRAIN_PROMPT.format(
             destination_title=destination_info.name,
-            destination_text=destination_info.segment_text or "Unknown Section",
+            destination_text=destination_info.name,
             regex_from_destination_id=regex,
             positive_samples=positive_samples_str,
             negative_samples=negative_samples_str,
@@ -299,6 +544,18 @@ class GenerateDestinationDetectionsUseCase:
         script = response.strip().strip("`")
 
         return script
+
+    @staticmethod
+    def _find_sentence_with_match(text: str, match_start: int, match_end: int) -> str:
+        sentences = SENTENCE_SPLIT_PATTERN.split(text)
+        pos = 0
+        for sentence in sentences:
+            sentence_start = text.find(sentence, pos)
+            sentence_end = sentence_start + len(sentence)
+            if sentence_start <= match_start < sentence_end:
+                return sentence.strip()
+            pos = sentence_end
+        return text
 
     @staticmethod
     def _split_into_sentences(text: str) -> list[str]:

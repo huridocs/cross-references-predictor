@@ -289,12 +289,12 @@ class TestEndToEnd(TestCase):
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
 
-        references = [
-            {"type": "PERSON", "text": "John D.", "destination": "John D."},
+        destinations = [
+            {"name": "John D.", "type": "PERSON"},
         ]
         result = requests.post(
-            f"{self.service_url}/save_references",
-            json={"namespace": namespace, "identifier": "doc1", "references": references},
+            f"{self.service_url}/destinations",
+            json={"namespace": namespace, "destinations": destinations},
         )
         self.assertEqual(200, result.status_code)
 
