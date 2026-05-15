@@ -69,5 +69,9 @@ class GetReferencesUseCase:
         enabled = set(PROCESS_REFERENCE_TYPES)
         return sorted(
             [e for e in all_references if e.type in enabled],
-            key=lambda x: x.character_start,
+            key=lambda x: (
+                x.segment.page_number if x.segment else 0,
+                x.segment.segment_number if x.segment else 0,
+                x.character_start,
+            ),
         )
