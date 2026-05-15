@@ -8,20 +8,17 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=localhost
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - POSTGRES_DB=references_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_HOST=http://localhost:11434
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
-    networks:
-      - network-cross-references-predictor
-    ports:
-      - "5070:5070"
+      - PDF_ANALYSIS_SERVICE_URL=http://localhost:5060
+    network_mode: host
     depends_on:
       - postgres
-      - ollama
 
   pdf-layout-analysis:
     container_name: "pdf-layout-analysis"
@@ -29,10 +26,7 @@ services:
     image: ghcr.io/huridocs/pdf-document-layout-analysis:0.0.32
     init: true
     restart: unless-stopped
-    networks:
-      - network-cross-references-predictor
-    ports:
-      - "5060:5060"
+    network_mode: host
 
   postgres:
     container_name: postgres
@@ -42,10 +36,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: references_db
-    ports:
-      - "5432:5432"
-    networks:
-      - network-cross-references-predictor
+      PGPORT: ${POSTGRES_PORT:-5432}
+    network_mode: host
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -53,30 +45,10 @@ services:
     container_name: adminer
     image: adminer:4
     restart: unless-stopped
-    networks:
-      - network-cross-references-predictor
-    ports:
-      - "8080:8080"
-
-  ollama:
-    container_name: ollama
-    image: ollama/ollama:latest
-    init: true
-    restart: unless-stopped
+    network_mode: host
     environment:
-      - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_KEY=${OLLAMA_API_KEY}
-    networks:
-      - network-cross-references-predictor
-    ports:
-      - "11434:11434"
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - "ollama cloud login \"$OLLAMA_KEY\" && ollama serve"
-
-networks:
-  network-cross-references-predictor:
-    driver: bridge
+      ADMINER_PORT: ${ADMINER_PORT:-8080}
+    entrypoint: php -S 0.0.0.0:${ADMINER_PORT:-8080} -t /var/www/html
 
 volumes:
   postgres_data:

@@ -8,6 +8,7 @@ from starlette.responses import FileResponse
 
 from cross_references_predictor.adapters.ollama_llm_repository import OllamaLLMRepository
 from cross_references_predictor.adapters.pdf_layout_analysis_repository import PDFLayoutAnalysisRepository
+from cross_references_predictor.configuration import DEFAULT_LLM_MODEL
 from cross_references_predictor.adapters.pdf_visualization_repository import PDFVisualizationRepository
 from cross_references_predictor.adapters.postgres_entities_store_repository import PostgresReferencesStoreRepository
 from cross_references_predictor.adapters.model_loader_repository import ConcreteModelLoader
@@ -57,6 +58,19 @@ def pdf_content_to_pdf_path(file_content, file_name: str = None) -> Path:
 @app.get("/")
 async def info():
     return sys.version
+
+
+@app.get("/health/llm")
+@catch_exceptions
+async def health_llm():
+    try:
+        llm = OllamaLLMRepository(model=DEFAULT_LLM_MODEL)
+        response = llm.query("Respond with only the word OK")
+        if response.strip() != "OK":
+            return {"status": "error", "model": DEFAULT_LLM_MODEL, "error": f"Unexpected response: {response}"}
+        return {"status": "ok", "model": DEFAULT_LLM_MODEL}
+    except Exception as e:
+        return {"status": "error", "model": DEFAULT_LLM_MODEL, "error": str(e)}
 
 
 @app.post("/")
