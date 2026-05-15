@@ -13,12 +13,15 @@ services:
       - POSTGRES_DB=references_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     networks:
       - network-cross-references-predictor
     ports:
       - "5070:5070"
     depends_on:
       - postgres
+      - ollama
 
   pdf-layout-analysis:
     container_name: "pdf-layout-analysis"
@@ -54,6 +57,22 @@ services:
       - network-cross-references-predictor
     ports:
       - "8080:8080"
+
+  ollama:
+    container_name: ollama
+    image: ollama/ollama:latest
+    init: true
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEY=${OLLAMA_API_KEY}
+    networks:
+      - network-cross-references-predictor
+    ports:
+      - "11434:11434"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "ollama cloud login \"$OLLAMA_KEY\" && ollama serve"
 
 networks:
   network-cross-references-predictor:
