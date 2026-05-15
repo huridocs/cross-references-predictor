@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir gradio==5.25.2 requests==2.33.1
+
+ENV PYTHONPATH="${PYTHONPATH}:/app/src"
+
+WORKDIR /app
+COPY ./src/cross_references_predictor/drivers/gradio_ui ./src/cross_references_predictor/drivers/gradio_ui
+
+EXPOSE 7860
+
+CMD ["python", "src/cross_references_predictor/drivers/gradio_ui/gradio_app.py"]

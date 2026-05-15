@@ -28,6 +28,16 @@ services:
     restart: unless-stopped
     network_mode: host
 
+  gradio-ui:
+    container_name: gradio-ui
+    build:
+      context: .
+      dockerfile: Dockerfile.gradio
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - cross-references-predictor
+
   postgres:
     container_name: postgres
     image: postgres:15
