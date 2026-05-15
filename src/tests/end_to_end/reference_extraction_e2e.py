@@ -231,6 +231,89 @@ def run_detection_scripts_with_ollama():
     print("Detection scripts test PASSED")
 
 
+def run_negative_samples_test():
+    print("\n=== Testing negative samples for disambiguation ===")
+
+    occurrences = [
+        {
+            "text": "Article 5",
+            "destination": "Article 5 - Data Processing",
+            "pdf_name": "regulation.pdf",
+            "page": 3,
+            "segment_text": "The processing of personal data shall comply with Article 5.",
+        },
+        {
+            "text": "Article 5",
+            "destination": "Article 5 - Data Processing",
+            "pdf_name": "regulation.pdf",
+            "page": 4,
+            "segment_text": "Pursuant to Article 5, data must be processed lawfully.",
+        },
+        {
+            "text": "Article 5a",
+            "destination": "Article 5a - Special Categories",
+            "pdf_name": "regulation.pdf",
+            "page": 7,
+            "segment_text": "Article 5a covers special categories of personal data.",
+        },
+    ]
+
+    response = save_references(occurrences)
+    print(f"Saved references: {response.json()}")
+    assert response.status_code == 200, f"Failed to save references: {response.text}"
+
+    negative_segments = [
+        {
+            "text": "Article 5a establishes additional requirements for special categories of data.",
+            "pdf_name": "regulation.pdf",
+            "page": 7,
+        },
+        {
+            "text": "The provisions of Article 5a supplement the general rules in this Chapter.",
+            "pdf_name": "regulation.pdf",
+            "page": 8,
+        },
+    ]
+
+    response = requests.post(
+        f"{SERVICE_URL}/negative_samples",
+        json={
+            "namespace": NAMESPACE,
+            "language": LANGUAGE,
+            "destination_id": "Article 5 - Data Processing",
+            "segments": negative_segments,
+        },
+    )
+    print(f"Saved negative samples: {response.json()}")
+    assert response.status_code == 200, f"Failed to save negative samples: {response.text}"
+
+    success, scripts_count = generate_detection_scripts()
+
+    if not success:
+        print("WARNING: Ollama not available, skipping script generation validation")
+        print("Negative samples endpoint test PASSED (save only)")
+        return
+
+    print(f"Generated {scripts_count} detection scripts")
+    assert scripts_count >= 1, f"Expected at least 1 script, got {scripts_count}"
+
+    text = "The general rules in Article 5 apply. Additionally, Article 5a covers special cases."
+    extract_response = requests.post(
+        f"{SERVICE_URL}/",
+        data={"text": text, "namespace": NAMESPACE, "language": LANGUAGE},
+    )
+
+    refs_response = extract_response.json()
+    ref_refs = [r for r in refs_response.get("references", []) if r.get("type") == "REFERENCE"]
+    print(f"Detected REFERENCE references: {len(ref_refs)}")
+
+    if ref_refs:
+        for r in ref_refs:
+            print(f"  - text: {r.get('text')}, destination: {r.get('destination')}")
+
+    print("Negative samples test PASSED")
+
+
 def main():
     print(f"Starting REFERENCE extraction E2E tests for namespace: {NAMESPACE}")
 
@@ -250,6 +333,10 @@ def main():
         cleanup()
 
         run_detection_scripts_with_ollama()
+
+        cleanup()
+
+        run_negative_samples_test()
 
         print("\n=== ALL TESTS PASSED ===")
 
