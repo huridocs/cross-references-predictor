@@ -69,9 +69,13 @@ class ReferencesStoreRepository(ABC):
         pass
 
     @abstractmethod
-    def save_negative_samples(self, destination_id: str, segments: list[Segment]) -> bool:
+    def update_consolidated_destination(self, current_name: str, updated: ConsolidatedDestination) -> bool:
         pass
 
     @abstractmethod
-    def get_negative_samples(self, destination_id: str) -> list[Segment]:
+    def save_negative_samples(self, destination: str, segments: list[Segment]) -> bool:
+        pass
+
+    @abstractmethod
+    def get_negative_samples(self, destination: str) -> list[Segment]:
         pass

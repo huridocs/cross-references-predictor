@@ -99,9 +99,12 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 alternative_names TEXT DEFAULT '[]',
                 is_from_reference BOOLEAN DEFAULT FALSE,
                 external_id TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(name, type)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        """)
+        cursor.execute(f"""
+            ALTER TABLE {self.schema_name}.consolidated_destinations
+            DROP CONSTRAINT IF EXISTS consolidated_destinations_name_type_key
         """)
         cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {self.schema_name}.detection_scripts (
@@ -551,32 +554,77 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
         try:
             connection, cursor = self.get_connection()
 
-            for dest in destinations:
-                alt_names_json = json.dumps(dest.alternative_names)
+            cursor.execute(
+                f"SELECT id, name, type, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations"
+            )
+            rows = cursor.fetchall()
 
-                cursor.execute(
-                    f"SELECT id, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations WHERE name = %s AND type = %s",
-                    (dest.name, str(dest.type)),
+            existing_list: list[dict] = []
+            for row in rows:
+                existing_list.append(
+                    {
+                        "id": row[0],
+                        "name": row[1],
+                        "type": ReferenceType(row[2]),
+                        "alternative_names": json.loads(row[3]) if row[3] else [],
+                        "is_from_reference": bool(row[4]),
+                        "external_id": row[5],
+                    }
                 )
-                existing = cursor.fetchone()
 
-                if existing:
-                    existing_alt = json.loads(existing[1]) if existing[1] else []
-                    merged_alt = list(existing_alt)
-                    for alt in dest.alternative_names:
-                        if alt not in merged_alt:
-                            merged_alt.append(alt)
-                    is_ref = bool(existing[2]) or dest.is_from_reference
-                    ext_id = existing[3] or dest.external_id
-                    cursor.execute(
-                        f"""
-                        UPDATE {self.schema_name}.consolidated_destinations
-                        SET alternative_names = %s, is_from_reference = %s, external_id = %s
-                        WHERE id = %s
-                        """,
-                        (json.dumps(merged_alt), is_ref, ext_id, existing[0]),
+            matched_ids: set[int] = set()
+
+            for dest in destinations:
+                matched = False
+
+                for existing in existing_list:
+                    if existing["id"] in matched_ids:
+                        continue
+
+                    if existing["type"] != dest.type:
+                        continue
+
+                    existing_cd = ConsolidatedDestination(
+                        name=existing["name"],
+                        type=existing["type"],
+                        alternative_names=existing["alternative_names"],
+                        is_from_reference=existing["is_from_reference"],
+                        external_id=existing["external_id"],
                     )
-                else:
+
+                    if existing_cd.matches(dest):
+                        existing_cd.merge_with(dest)
+                        if dest.is_from_reference and existing_cd.is_from_reference and dest.name != existing_cd.name:
+                            old_name = existing_cd.name
+                            existing_cd.name = dest.name
+                            existing_cd.add_alternative_name(old_name)
+                        merged_alt = [a for a in existing_cd.alternative_names if a != existing_cd.name]
+
+                        cursor.execute(
+                            f"""
+                            UPDATE {self.schema_name}.consolidated_destinations
+                            SET name = %s, alternative_names = %s, is_from_reference = %s, external_id = %s
+                            WHERE id = %s
+                            """,
+                            (
+                                existing_cd.name,
+                                json.dumps(merged_alt),
+                                existing_cd.is_from_reference,
+                                existing_cd.external_id,
+                                existing["id"],
+                            ),
+                        )
+
+                        existing["name"] = existing_cd.name
+                        existing["alternative_names"] = merged_alt
+                        existing["is_from_reference"] = existing_cd.is_from_reference
+                        existing["external_id"] = existing_cd.external_id
+                        matched_ids.add(existing["id"])
+                        matched = True
+                        break
+
+                if not matched:
+                    alt_names_json = json.dumps(dest.alternative_names)
                     cursor.execute(
                         f"""
                         INSERT INTO {self.schema_name}.consolidated_destinations (name, type, alternative_names, is_from_reference, external_id)
@@ -590,6 +638,55 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
             return True
         except Exception as e:
             print(f"Error saving consolidated destinations: {e}")
+            return False
+
+    def update_consolidated_destination(self, current_name: str, updated: ConsolidatedDestination) -> bool:
+        if not self.exists_schema():
+            return False
+
+        try:
+            connection, cursor = self.get_connection()
+
+            cursor.execute(
+                f"SELECT id, name, type, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations WHERE name = %s",
+                (current_name,),
+            )
+            row = cursor.fetchone()
+
+            if not row:
+                connection.close()
+                return False
+
+            existing_id = row[0]
+            existing_alt = json.loads(row[3]) if row[3] else []
+            existing_is_ref = bool(row[4])
+            existing_ext_id = row[5]
+
+            merged_alt = list(existing_alt)
+            for alt in updated.alternative_names:
+                if alt not in merged_alt and alt != updated.name:
+                    merged_alt.append(alt)
+
+            if current_name != updated.name and current_name not in merged_alt:
+                merged_alt.append(current_name)
+
+            is_ref = existing_is_ref or updated.is_from_reference
+            ext_id = existing_ext_id or updated.external_id
+
+            cursor.execute(
+                f"""
+                UPDATE {self.schema_name}.consolidated_destinations
+                SET name = %s, type = %s, alternative_names = %s, is_from_reference = %s, external_id = %s
+                WHERE id = %s
+                """,
+                (updated.name, str(updated.type), json.dumps(merged_alt), is_ref, ext_id, existing_id),
+            )
+
+            connection.commit()
+            connection.close()
+            return True
+        except Exception as e:
+            print(f"Error updating consolidated destination: {e}")
             return False
 
     def reset_consolidated_destinations(self) -> bool:
@@ -788,7 +885,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
             print(f"Error deleting detection script: {e}")
             return False
 
-    def save_negative_samples(self, destination_id: str, segments: list[Segment]) -> bool:
+    def save_negative_samples(self, destination: str, segments: list[Segment]) -> bool:
         if not self.exists_schema():
             self.create_database()
 
@@ -802,7 +899,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                         (destination_id, segment_text, pdf_name, page_number)
                     VALUES (%s, %s, %s, %s)
                     """,
-                    (destination_id, segment.text, segment.pdf_name, segment.page_number),
+                    (destination, segment.text, segment.pdf_name, segment.page_number),
                 )
 
             connection.commit()
@@ -812,7 +909,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
             print(f"Error saving negative samples: {e}")
             return False
 
-    def get_negative_samples(self, destination_id: str) -> list[Segment]:
+    def get_negative_samples(self, destination: str) -> list[Segment]:
         if not self.exists_schema():
             return []
 
@@ -824,7 +921,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 FROM {self.schema_name}.negative_samples
                 WHERE destination_id = %s
                 """,
-                (destination_id,),
+                (destination,),
             )
             rows = cursor.fetchall()
             connection.close()

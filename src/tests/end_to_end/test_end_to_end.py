@@ -333,3 +333,61 @@ class TestEndToEnd(TestCase):
         self.assertIn("Maria P. D", destination_names)
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
+
+    def test_post_destinations_consolidation_by_alternative_names(self):
+        namespace = "test_post_consolidation_namespace"
+
+        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
+
+        first = requests.post(
+            f"{self.service_url}/destinations",
+            json={"namespace": namespace, "destinations": [{"name": "Johnathan Doe", "type": "PERSON"}]},
+        )
+        self.assertEqual(200, first.status_code)
+
+        second = requests.post(
+            f"{self.service_url}/destinations",
+            json={
+                "namespace": namespace,
+                "destinations": [{"name": "John D.", "type": "PERSON", "alternative_names": ["Johnathan Doe"]}],
+            },
+        )
+        self.assertEqual(200, second.status_code)
+
+        get_result = requests.get(f"{self.service_url}/destinations", params={"namespace": namespace, "language": "en"})
+        self.assertEqual(200, get_result.status_code)
+
+        destinations = get_result.json()
+        self.assertEqual(1, len(destinations))
+        self.assertEqual("John D.", destinations[0]["name"])
+        self.assertIn("Johnathan Doe", destinations[0]["alternative_names"])
+
+        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
+
+    def test_put_destination_rename(self):
+        namespace = "test_put_rename_namespace"
+
+        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
+
+        post_result = requests.post(
+            f"{self.service_url}/destinations",
+            json={"namespace": namespace, "destinations": [{"name": "John Doe", "type": "PERSON"}]},
+        )
+        self.assertEqual(200, post_result.status_code)
+
+        put_result = requests.put(
+            f"{self.service_url}/destinations/John Doe",
+            json={"name": "Johnathan Doe", "type": "PERSON"},
+            params={"namespace": namespace, "language": "en"},
+        )
+        self.assertEqual(200, put_result.status_code)
+
+        get_result = requests.get(f"{self.service_url}/destinations", params={"namespace": namespace, "language": "en"})
+        self.assertEqual(200, get_result.status_code)
+
+        destinations = get_result.json()
+        self.assertEqual(1, len(destinations))
+        self.assertEqual("Johnathan Doe", destinations[0]["name"])
+        self.assertIn("John Doe", destinations[0]["alternative_names"])
+
+        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})

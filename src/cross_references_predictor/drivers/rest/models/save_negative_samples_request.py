@@ -10,5 +10,5 @@ class NegativeSampleSegment(BaseModel):
 class SaveNegativeSamplesRequest(BaseModel):
     namespace: str
     language: str = "en"
-    destination_id: str
+    destination: str
     segments: list[NegativeSampleSegment]

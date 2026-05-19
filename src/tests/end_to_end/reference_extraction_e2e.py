@@ -280,7 +280,7 @@ def run_negative_samples_test():
         json={
             "namespace": NAMESPACE,
             "language": LANGUAGE,
-            "destination_id": "Article 5 - Data Processing",
+            "destination": "Article 5 - Data Processing",
             "segments": negative_segments,
         },
     )

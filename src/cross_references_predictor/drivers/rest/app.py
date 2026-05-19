@@ -20,7 +20,7 @@ from cross_references_predictor.domain.reference_type import ReferenceType
 from cross_references_predictor.domain.segment import Segment
 from cross_references_predictor.drivers.rest.catch_exceptions import catch_exceptions
 from cross_references_predictor.drivers.rest.models.cross_references_response import CrossReferencesResponse
-from cross_references_predictor.drivers.rest.models.save_destinations_request import SaveDestinationsRequest
+from cross_references_predictor.drivers.rest.models.save_destinations_request import DestinationSeed, SaveDestinationsRequest
 from cross_references_predictor.drivers.rest.models.save_reference_occurrences_request import SaveReferenceOccurrencesRequest
 from cross_references_predictor.drivers.rest.models.save_negative_samples_request import SaveNegativeSamplesRequest
 
@@ -230,6 +230,29 @@ async def get_destinations(namespace: str = "default_namespace", language: str =
     ]
 
 
+@app.put("/destinations/{name}")
+@catch_exceptions
+async def update_destination(
+    name: str, destination: DestinationSeed, namespace: str = "default_namespace", language: str = "en"
+):
+    store_repository = PostgresReferencesStoreRepository(namespace, language)
+
+    updated = ConsolidatedDestination(
+        name=destination.name,
+        type=destination.type,
+        alternative_names=destination.alternative_names,
+        is_from_reference=True,
+        external_id=destination.external_id,
+    )
+
+    success = store_repository.update_consolidated_destination(name, updated)
+
+    if success:
+        return {"status": "success", "message": f"Destination '{name}' updated"}
+    else:
+        return {"status": "error", "message": f"Destination '{name}' not found"}, 404
+
+
 @app.post("/reference_occurrences")
 @catch_exceptions
 async def save_reference_occurrences(request: SaveReferenceOccurrencesRequest):
@@ -275,7 +298,7 @@ async def save_negative_samples(request: SaveNegativeSamplesRequest):
     ]
 
     store_repository = PostgresReferencesStoreRepository(request.namespace, request.language)
-    success = store_repository.save_negative_samples(request.destination_id, segments)
+    success = store_repository.save_negative_samples(request.destination, segments)
 
     if success:
         return {"status": "success", "message": f"Saved {len(segments)} negative samples"}
