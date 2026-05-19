@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import threading
@@ -82,11 +83,15 @@ async def get_cross_references(
     file: UploadFile = File(None),
     fast: bool = Form(False),
     language: str = Form("en"),
+    segments: str = Form(None),
 ):
     pdf_path = None
     if file:
         pdf_path = pdf_content_to_pdf_path(await file.read(), file.filename)
         segments = PDFLayoutAnalysisRepository().get_segments(pdf_path, fast)
+    elif segments:
+        segments_data = json.loads(segments)
+        segments = [Segment(**seg) for seg in segments_data]
     else:
         segments = [Segment.from_text(text=text if text else "", pdf_name=identifier)]
 
