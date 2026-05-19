@@ -20,29 +20,33 @@ def save_references(occurrences: list[dict]) -> dict:
     return response
 
 
-def generate_detection_scripts() -> tuple[bool, int]:
+def generate_detection_scripts() -> tuple[bool, int, str]:
     repo = requests.post(
         f"{SERVICE_URL}/generate_detection_scripts",
         data={"namespace": NAMESPACE, "language": LANGUAGE},
     )
     if repo.status_code != 200:
-        print(f"Error generating scripts: {repo.status_code} - {repo.text}")
-        return False, 0
+        error_msg = f"HTTP {repo.status_code} - {repo.text}"
+        print(f"Error generating scripts: {error_msg}")
+        return False, 0, error_msg
 
     task_id = repo.json()["task_id"]
 
-    max_attempts = 30
-    for _ in range(max_attempts):
+    max_attempts = 600
+    for attempt in range(max_attempts):
         task_status = requests.get(f"{SERVICE_URL}/tasks/{task_id}")
         status_data = task_status.json()
         if status_data["status"] == "completed":
-            return True, status_data["result"]["scripts_generated"]
+            return True, status_data["result"]["scripts_generated"], ""
         elif status_data["status"] == "failed":
-            print(f"Script generation failed: {status_data['error']}")
-            return False, 0
+            error_msg = status_data["error"]
+            print(f"Script generation failed: {error_msg}")
+            return False, 0, error_msg
+        elif attempt % 30 == 0:
+            print(f"Waiting for script generation... ({attempt}/{max_attempts}s)")
         time.sleep(1)
 
-    return False, 0
+    return False, 0, "Timed out waiting for script generation task to complete"
 
 
 def run_type_1_with_segment():
@@ -187,8 +191,14 @@ def run_mixed_types():
     print("Mixed types test PASSED")
 
 
-def run_detection_scripts_with_ollama():
+def run_detection_scripts_with_ollama(ollama_available: bool):
     print("\n=== Testing detection script generation with Ollama ===")
+
+    if not ollama_available:
+        raise AssertionError(
+            "Detection scripts test FAILED: Ollama is not running. "
+            "Start Ollama and ensure the model is available, then re-run the tests."
+        )
 
     occurrences = [
         {
@@ -203,13 +213,16 @@ def run_detection_scripts_with_ollama():
     response = save_references(occurrences)
     print(f"Saved references: {response.json()}")
 
-    success, scripts_count = generate_detection_scripts()
+    success, scripts_count, error_msg = generate_detection_scripts()
 
     if not success:
-        print("WARNING: Ollama not available, skipping script generation test")
-        print("This is expected if Ollama is not running.")
-        print("Detection scripts test SKIPPED")
-        return
+        if "Timed out" in error_msg:
+            raise AssertionError(
+                f"Detection scripts test FAILED: script generation timed out after 600s (10 minutes). "
+                f"The LLM model may be slow to respond. Check service logs."
+            )
+        else:
+            raise AssertionError(f"Detection scripts test FAILED: script generation failed: {error_msg}")
 
     print(f"Generated {scripts_count} detection scripts")
     assert scripts_count == 1, f"Expected 1 script, got {scripts_count}"
@@ -231,7 +244,7 @@ def run_detection_scripts_with_ollama():
     print("Detection scripts test PASSED")
 
 
-def run_negative_samples_test():
+def run_negative_samples_test(ollama_available: bool):
     print("\n=== Testing negative samples for disambiguation ===")
 
     occurrences = [
@@ -287,13 +300,22 @@ def run_negative_samples_test():
     print(f"Saved negative samples: {response.json()}")
     assert response.status_code == 200, f"Failed to save negative samples: {response.text}"
 
-    success, scripts_count = generate_detection_scripts()
+    if not ollama_available:
+        raise AssertionError(
+            "Negative samples test FAILED: Ollama is not running. "
+            "Start Ollama and ensure the model is available, then re-run the tests."
+        )
+
+    success, scripts_count, error_msg = generate_detection_scripts()
 
     if not success:
-        print("WARNING: Ollama not available, skipping script generation validation")
-        print("Negative samples endpoint test PASSED (save only)")
-        return
-
+        if "Timed out" in error_msg:
+            raise AssertionError(
+                f"Negative samples test FAILED: script generation timed out after 600s (10 minutes). "
+                f"The LLM model may be slow to respond. Check service logs."
+            )
+        else:
+            raise AssertionError(f"Negative samples test FAILED: script generation failed: {error_msg}")
     print(f"Generated {scripts_count} detection scripts")
     assert scripts_count >= 1, f"Expected at least 1 script, got {scripts_count}"
 
@@ -314,8 +336,23 @@ def run_negative_samples_test():
     print("Negative samples test PASSED")
 
 
+def check_ollama_available() -> bool:
+    try:
+        response = requests.get(f"{SERVICE_URL}/health/llm", timeout=120)
+        body = response.json()
+        status = body.get("status")
+        if status != "ok":
+            print(f"Ollama health check returned status '{status}': {body}")
+        return status == "ok"
+    except Exception as e:
+        print(f"Ollama health check request failed: {e}")
+        return False
+
+
 def main():
     print(f"Starting REFERENCE extraction E2E tests for namespace: {NAMESPACE}")
+
+    ollama_available = check_ollama_available()
 
     try:
         cleanup()
@@ -332,11 +369,11 @@ def main():
 
         cleanup()
 
-        run_detection_scripts_with_ollama()
+        run_detection_scripts_with_ollama(ollama_available)
 
         cleanup()
 
-        run_negative_samples_test()
+        run_negative_samples_test(ollama_available)
 
         print("\n=== ALL TESTS PASSED ===")
 
