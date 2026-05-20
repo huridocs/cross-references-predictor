@@ -27,11 +27,6 @@ class TestConsolidatedDestination(TestCase):
         self.assertEqual(dest.name, "Maria P. Doo")
         self.assertIn("Maria P. D.", dest.alternative_names)
 
-    def test_update_name_does_not_change_when_from_reference(self):
-        dest = ConsolidatedDestination(name="John D.", type=ReferenceType.PERSON, is_from_reference=True)
-        dest.update_name("John Doe")
-        self.assertEqual(dest.name, "John D.")
-
     def test_belongs_to_reference_matches_similar_name(self):
         dest = ConsolidatedDestination(
             name="Maria P. Doo",
@@ -52,17 +47,3 @@ class TestConsolidatedDestination(TestCase):
         dest1.merge_with(dest2)
         self.assertEqual(dest1.name, "Maria P. Doo")
         self.assertIn("Maria P. D.", dest1.alternative_names)
-
-    def test_merge_with_reference_preserves_name(self):
-        dest1 = ConsolidatedDestination(name="John Doe", type=ReferenceType.PERSON)
-        dest2 = ConsolidatedDestination(name="John D.", type=ReferenceType.PERSON, is_from_reference=True)
-        dest1.merge_with(dest2)
-        self.assertEqual(dest1.name, "John D.")
-        self.assertTrue(dest1.is_from_reference)
-
-    def test_merge_with_reference_does_not_override_reference_name(self):
-        dest1 = ConsolidatedDestination(name="John D.", type=ReferenceType.PERSON, is_from_reference=True)
-        dest2 = ConsolidatedDestination(name="John Doe", type=ReferenceType.PERSON)
-        dest1.merge_with(dest2)
-        self.assertEqual(dest1.name, "John D.")
-        self.assertTrue(dest1.is_from_reference)

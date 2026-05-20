@@ -40,23 +40,6 @@ class TestReferenceDestinationUseCaseWithConsolidated(TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, "Maria P. Doo")
 
-    def test_consolidated_destination_from_reference_does_not_change_name(self):
-        consolidated = [
-            ConsolidatedDestination(
-                name="John D.",
-                type=ReferenceType.PERSON,
-                is_from_reference=True,
-            )
-        ]
-        use_case = ReferenceDestinationUseCase(consolidated_destinations=consolidated)
-
-        new_entity = [Reference(type=ReferenceType.PERSON, text="John Doe", normalized_text="john doe")]
-
-        result = use_case.group(new_entity)
-
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].name, "John D.")
-
     def test_prior_reference_and_consolidated_destination_both_used(self):
         prior = [
             Reference(

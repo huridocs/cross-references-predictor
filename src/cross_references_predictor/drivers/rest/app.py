@@ -114,21 +114,6 @@ async def get_cross_references(
         references
     )
 
-    if store_repository:
-        new_consolidated = []
-        for dest in reference_destinations:
-            alternative_names = [ref.text for ref in dest.references if ref.text != dest.name]
-            new_consolidated.append(
-                ConsolidatedDestination(
-                    name=dest.name,
-                    type=dest.type,
-                    alternative_names=alternative_names,
-                    is_from_reference=False,
-                    external_id=dest.external_id,
-                )
-            )
-        store_repository.save_consolidated_destinations(new_consolidated)
-
     return CrossReferencesResponse.from_destinations(reference_destinations)
 
 
@@ -201,7 +186,6 @@ async def save_destinations(request: SaveDestinationsRequest):
             name=seed.name,
             type=seed.type,
             alternative_names=seed.alternative_names,
-            is_from_reference=True,
             external_id=seed.external_id,
         )
         for seed in request.destinations
@@ -224,7 +208,6 @@ async def get_destinations(namespace: str = "default_namespace", language: str =
             "type": str(dest.type),
             "external_id": dest.external_id,
             "alternative_names": dest.alternative_names,
-            "is_from_reference": dest.is_from_reference,
         }
         for dest in destinations
     ]
@@ -241,7 +224,6 @@ async def update_destination(
         name=destination.name,
         type=destination.type,
         alternative_names=destination.alternative_names,
-        is_from_reference=True,
         external_id=destination.external_id,
     )
 

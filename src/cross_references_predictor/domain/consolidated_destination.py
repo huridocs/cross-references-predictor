@@ -9,7 +9,6 @@ class ConsolidatedDestination(BaseModel):
     name: str
     type: ReferenceType
     alternative_names: list[str] = []
-    is_from_reference: bool = False
     external_id: str | None = None
 
     def add_alternative_name(self, name: str):
@@ -17,8 +16,6 @@ class ConsolidatedDestination(BaseModel):
             self.alternative_names.append(name)
 
     def update_name(self, new_name: str):
-        if self.is_from_reference:
-            return
         if len(new_name) > len(self.name):
             old_name = self.name
             self.name = new_name
@@ -43,18 +40,10 @@ class ConsolidatedDestination(BaseModel):
         return False
 
     def merge_with(self, other: "ConsolidatedDestination"):
-        if other.is_from_reference and not self.is_from_reference:
-            self.is_from_reference = True
-            old_name = self.name
-            self.name = other.name
-            self.add_alternative_name(old_name)
-        elif not other.is_from_reference and not self.is_from_reference and len(other.name) > len(self.name):
+        if other.name != self.name:
             old_name = self.name
             self.name = other.name
             self.add_alternative_name(old_name)
 
         for alt in other.alternative_names:
             self.add_alternative_name(alt)
-
-        if other.is_from_reference:
-            self.is_from_reference = True

@@ -41,15 +41,12 @@ class ReferenceDestinationUseCase:
         for consolidated in self.consolidated_destinations:
             if consolidated.name in self.prior_groups:
                 self.prior_groups[consolidated.name].known_forms.extend([consolidated.name] + consolidated.alternative_names)
-                if consolidated.is_from_reference:
-                    self.prior_groups[consolidated.name].is_name_fixed = True
                 continue
 
             group = ReferenceDestination(
                 type=consolidated.type,
                 name=consolidated.name,
                 known_forms=[consolidated.name] + consolidated.alternative_names,
-                is_name_fixed=consolidated.is_from_reference,
                 top_relevance_entity=None,
                 external_id=consolidated.external_id,
             )

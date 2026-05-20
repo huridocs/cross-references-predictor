@@ -97,7 +97,6 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                 name TEXT NOT NULL,
                 type TEXT NOT NULL,
                 alternative_names TEXT DEFAULT '[]',
-                is_from_reference BOOLEAN DEFAULT FALSE,
                 external_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -390,7 +389,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
         try:
             connection, cursor = self.get_connection()
             cursor.execute(
-                f"SELECT name, type, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations ORDER BY name"
+                f"SELECT name, type, alternative_names, external_id FROM {self.schema_name}.consolidated_destinations ORDER BY name"
             )
             rows = cursor.fetchall()
             connection.close()
@@ -403,8 +402,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                         name=row[0],
                         type=ReferenceType(row[1]),
                         alternative_names=alt_names,
-                        is_from_reference=bool(row[3]),
-                        external_id=row[4],
+                        external_id=row[3],
                     )
                 )
             return destinations
@@ -512,7 +510,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
         try:
             connection, cursor = self.get_connection()
             cursor.execute(
-                f"SELECT name, type, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations"
+                f"SELECT name, type, alternative_names, external_id FROM {self.schema_name}.consolidated_destinations"
             )
             rows = cursor.fetchall()
             connection.close()
@@ -525,8 +523,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                         name=row[0],
                         type=ReferenceType(row[1]),
                         alternative_names=alt_names,
-                        is_from_reference=bool(row[3]),
-                        external_id=row[4],
+                        external_id=row[3],
                     )
                 )
 
@@ -555,7 +552,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
             connection, cursor = self.get_connection()
 
             cursor.execute(
-                f"SELECT id, name, type, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations"
+                f"SELECT id, name, type, alternative_names, external_id FROM {self.schema_name}.consolidated_destinations"
             )
             rows = cursor.fetchall()
 
@@ -567,8 +564,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                         "name": row[1],
                         "type": ReferenceType(row[2]),
                         "alternative_names": json.loads(row[3]) if row[3] else [],
-                        "is_from_reference": bool(row[4]),
-                        "external_id": row[5],
+                        "external_id": row[4],
                     }
                 )
 
@@ -588,28 +584,22 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                         name=existing["name"],
                         type=existing["type"],
                         alternative_names=existing["alternative_names"],
-                        is_from_reference=existing["is_from_reference"],
                         external_id=existing["external_id"],
                     )
 
                     if existing_cd.matches(dest):
                         existing_cd.merge_with(dest)
-                        if dest.is_from_reference and existing_cd.is_from_reference and dest.name != existing_cd.name:
-                            old_name = existing_cd.name
-                            existing_cd.name = dest.name
-                            existing_cd.add_alternative_name(old_name)
                         merged_alt = [a for a in existing_cd.alternative_names if a != existing_cd.name]
 
                         cursor.execute(
                             f"""
                             UPDATE {self.schema_name}.consolidated_destinations
-                            SET name = %s, alternative_names = %s, is_from_reference = %s, external_id = %s
+                            SET name = %s, alternative_names = %s, external_id = %s
                             WHERE id = %s
                             """,
                             (
                                 existing_cd.name,
                                 json.dumps(merged_alt),
-                                existing_cd.is_from_reference,
                                 existing_cd.external_id,
                                 existing["id"],
                             ),
@@ -617,7 +607,6 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
 
                         existing["name"] = existing_cd.name
                         existing["alternative_names"] = merged_alt
-                        existing["is_from_reference"] = existing_cd.is_from_reference
                         existing["external_id"] = existing_cd.external_id
                         matched_ids.add(existing["id"])
                         matched = True
@@ -627,10 +616,10 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
                     alt_names_json = json.dumps(dest.alternative_names)
                     cursor.execute(
                         f"""
-                        INSERT INTO {self.schema_name}.consolidated_destinations (name, type, alternative_names, is_from_reference, external_id)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO {self.schema_name}.consolidated_destinations (name, type, alternative_names, external_id)
+                        VALUES (%s, %s, %s, %s)
                         """,
-                        (dest.name, str(dest.type), alt_names_json, dest.is_from_reference, dest.external_id),
+                        (dest.name, str(dest.type), alt_names_json, dest.external_id),
                     )
 
             connection.commit()
@@ -648,7 +637,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
             connection, cursor = self.get_connection()
 
             cursor.execute(
-                f"SELECT id, name, type, alternative_names, is_from_reference, external_id FROM {self.schema_name}.consolidated_destinations WHERE name = %s",
+                f"SELECT id, name, type, alternative_names, external_id FROM {self.schema_name}.consolidated_destinations WHERE name = %s",
                 (current_name,),
             )
             row = cursor.fetchone()
@@ -659,8 +648,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
 
             existing_id = row[0]
             existing_alt = json.loads(row[3]) if row[3] else []
-            existing_is_ref = bool(row[4])
-            existing_ext_id = row[5]
+            ext_id = row[4] or updated.external_id
 
             merged_alt = list(existing_alt)
             for alt in updated.alternative_names:
@@ -670,16 +658,13 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
             if current_name != updated.name and current_name not in merged_alt:
                 merged_alt.append(current_name)
 
-            is_ref = existing_is_ref or updated.is_from_reference
-            ext_id = existing_ext_id or updated.external_id
-
             cursor.execute(
                 f"""
                 UPDATE {self.schema_name}.consolidated_destinations
-                SET name = %s, type = %s, alternative_names = %s, is_from_reference = %s, external_id = %s
+                SET name = %s, type = %s, alternative_names = %s, external_id = %s
                 WHERE id = %s
                 """,
-                (updated.name, str(updated.type), json.dumps(merged_alt), is_ref, ext_id, existing_id),
+                (updated.name, str(updated.type), json.dumps(merged_alt), ext_id, existing_id),
             )
 
             connection.commit()
@@ -695,7 +680,7 @@ class PostgresReferencesStoreRepository(ReferencesStoreRepository):
 
         try:
             connection, cursor = self.get_connection()
-            cursor.execute(f"DELETE FROM {self.schema_name}.consolidated_destinations WHERE is_from_reference = FALSE")
+            cursor.execute(f"DELETE FROM {self.schema_name}.consolidated_destinations")
             connection.commit()
             connection.close()
             return True

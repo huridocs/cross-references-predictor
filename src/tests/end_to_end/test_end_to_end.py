@@ -259,32 +259,7 @@ class TestEndToEnd(TestCase):
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
 
-    def test_destination_consolidation_across_extractions(self):
-        namespace = "test_consolidation_namespace"
-
-        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
-
-        text_1 = "Document about Maria P. Doo"
-        data = {"text": text_1, "namespace": namespace, "identifier": "doc1"}
-        result = requests.post(self.service_url, data=data)
-        self.assertEqual(200, result.status_code)
-
-        destinations = result.json()["destinations"]
-        destination_names = [d["name"] for d in destinations]
-        self.assertIn("Maria P. Doo", destination_names)
-
-        text_2 = "Document about Maria P. D."
-        data = {"text": text_2, "namespace": namespace, "identifier": "doc2"}
-        result = requests.post(self.service_url, data=data)
-        self.assertEqual(200, result.status_code)
-
-        destinations = result.json()["destinations"]
-        destination_names = [d["name"] for d in destinations]
-        self.assertIn("Maria P. Doo", destination_names)
-
-        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
-
-    def test_saved_reference_destination_name_preserved(self):
+    def test_saved_reference_destination_name_grows_longer(self):
         namespace = "test_reference_destination_namespace"
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
@@ -305,32 +280,7 @@ class TestEndToEnd(TestCase):
 
         destinations = result.json()["destinations"]
         destination_names = [d["name"] for d in destinations]
-        self.assertIn("John D.", destination_names)
-
-        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
-
-    def test_reset_destinations(self):
-        namespace = "test_reset_destinations_namespace"
-
-        requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
-
-        text = "Document about Maria P. Doo"
-        data = {"text": text, "namespace": namespace, "identifier": "doc1"}
-        result = requests.post(self.service_url, data=data)
-        self.assertEqual(200, result.status_code)
-
-        reset_result = requests.post(f"{self.service_url}/reset_destinations", data={"namespace": namespace})
-        self.assertEqual(200, reset_result.status_code)
-        self.assertEqual("success", reset_result.json()["status"])
-
-        text_2 = "Document about Maria P. D."
-        data = {"text": text_2, "namespace": namespace, "identifier": "doc2"}
-        result = requests.post(self.service_url, data=data)
-        self.assertEqual(200, result.status_code)
-
-        destinations = result.json()["destinations"]
-        destination_names = [d["name"] for d in destinations]
-        self.assertIn("Maria P. D", destination_names)
+        self.assertIn("John Doe", destination_names)
 
         requests.post(self.service_url + "/delete_namespace", data={"namespace": namespace})
 
