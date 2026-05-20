@@ -11,7 +11,7 @@ activate:
 	. .venv/bin/activate
 
 install_venv:
-	python3.14 -m venv .venv
+	python3 -m venv .venv
 	. .venv/bin/activate; uv pip install --upgrade pip
 	. .venv/bin/activate; uv pip install -r dev-requirements.txt
 
