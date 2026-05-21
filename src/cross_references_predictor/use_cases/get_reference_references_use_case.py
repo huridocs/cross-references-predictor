@@ -36,11 +36,49 @@ class GetReferenceReferencesUseCase:
         return all_references
 
     def get_references_from_text(self, text: str, segment: Segment = None) -> list[Reference]:
-        references = []
+        references: list[Reference] = []
         for detection in self.detection_scripts:
             refs = self._detect_references(text, detection, segment)
             references.extend(refs)
-        return sorted(references, key=lambda x: x.character_start)
+        return self._deduplicate_references(references, text)
+
+    def _deduplicate_references(self, references: list[Reference], text: str) -> list[Reference]:
+        if not references:
+            return references
+
+        groups: dict[tuple[int, int], list[Reference]] = {}
+        for ref in references:
+            key = (ref.character_start, ref.character_end)
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(ref)
+
+        result: list[Reference] = []
+        for pos, refs in groups.items():
+            if len(refs) == 1:
+                result.extend(refs)
+                continue
+
+            _, context_after = self._get_context_strings(text, pos[0], pos[1])
+            context_lower = context_after.lower()
+
+            scored = []
+            for ref in refs:
+                dest_words = [w.strip(".,;:()[]{}") for w in ref.destination.lower().split() if len(w) > 2]
+                if not dest_words:
+                    scored.append((0, ref))
+                    continue
+                score = sum(1 for w in dest_words if w in context_lower)
+                scored.append((score, ref))
+
+            scored.sort(key=lambda x: x[0], reverse=True)
+            best_score = scored[0][0]
+            if best_score > 0:
+                result.extend([s[1] for s in scored if s[0] == best_score])
+            else:
+                result.append(scored[0][1])
+
+        return sorted(result, key=lambda x: x.character_start)
 
     def _detect_references(self, text: str, detection: DestinationDetection, segment: Segment = None) -> list[Reference]:
         references = []
@@ -51,15 +89,18 @@ class GetReferenceReferencesUseCase:
 
         for match in compiled.finditer(text):
             match_text = match.group("reference")
-            sentence = self._find_sentence_with_match(text, match.start(), match.end())
+            match_start = match.start()
+            match_end = match.end()
+            sentence = self._find_sentence_with_match(text, match_start, match_end)
+            context_before, context_after = self._get_context_strings(text, match_start, match_end)
 
-            if self._is_true_reference(match_text, sentence, text, detection.script):
+            if self._is_true_reference(match_text, sentence, text, context_before, context_after, detection.script):
                 reference = Reference(
                     type=ReferenceType.REFERENCE,
                     text=match_text,
                     destination=detection.destination.name,
-                    character_start=match.start(),
-                    character_end=match.end(),
+                    character_start=match_start,
+                    character_end=match_end,
                     segment=segment,
                 )
                 references.append(reference)
@@ -79,7 +120,28 @@ class GetReferenceReferencesUseCase:
         return text
 
     @staticmethod
-    def _is_true_reference(match_text: str, sentence_text: str, paragraph_text: str, script: str) -> bool:
+    def _get_context_strings(text: str, match_start: int, match_end: int) -> tuple[str, str]:
+        match_text = text[match_start:match_end]
+
+        next_pos = text.find(match_text, match_end)
+        prev_pos = text.rfind(match_text, 0, match_start)
+
+        before_start = max(0, match_start - 100)
+        if prev_pos != -1:
+            before_start = max(before_start, prev_pos + len(match_text))
+
+        after_end = min(len(text), match_end + 100)
+        if next_pos != -1:
+            after_end = min(after_end, next_pos)
+
+        context_before = text[before_start:match_start]
+        context_after = text[match_end:after_end]
+        return context_before, context_after
+
+    @staticmethod
+    def _is_true_reference(
+        match_text: str, sentence_text: str, paragraph_text: str, context_before: str, context_after: str, script: str
+    ) -> bool:
         if not script:
             return True
 
@@ -91,6 +153,6 @@ class GetReferenceReferencesUseCase:
             if not is_reference or not callable(is_reference):
                 return True
 
-            return is_reference(match_text, sentence_text, paragraph_text)
+            return is_reference(match_text, sentence_text, paragraph_text, context_before, context_after)
         except Exception:
             return True

@@ -85,9 +85,9 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
         self.mock_repository.get_references_by_type.return_value = [ref1, ref2]
         self.mock_llm_service.query.side_effect = [
             "(?P<reference>Doc\\s+A)",
-            "def is_reference(match_text, sentence_text, paragraph_text):\n    return True",
+            "def is_reference(match_text, sentence_text, paragraph_text, context_before, context_after):\n    return True",
             "(?P<reference>Doc\\s+B)",
-            "def is_reference(match_text, sentence_text, paragraph_text):\n    return True",
+            "def is_reference(match_text, sentence_text, paragraph_text, context_before, context_after):\n    return True",
         ]
 
         result = self.use_case.execute()
@@ -205,7 +205,7 @@ class TestGenerateDestinationDetectionsUseCase(TestCase):
             segment_pdf_name="doc.pdf",
         )
 
-        self.mock_llm_service.query.return_value = """def is_reference(match_text: str, sentence_text: str, paragraph_text: str) -> bool:
+        self.mock_llm_service.query.return_value = """def is_reference(match_text: str, sentence_text: str, paragraph_text: str, context_before: str, context_after: str) -> bool:
     return True"""
 
         positive_samples = [

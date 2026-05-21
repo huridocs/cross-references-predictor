@@ -122,32 +122,39 @@ Objective: Develop a robust Python validation function that distinguishes betwee
 
 [GROUND TRUTH DATA]
 
-    Positive Samples (True Matches — each sample shows the sentence containing the match):
+    Positive Samples (True Matches — each sample shows the sentence containing the match, plus the immediate text before and after the matched occurrence):
     {positive_samples}
 
 
 [NEGATIVE SAMPLES]
-    Negative Samples (Distractors to Avoid — each sample shows the sentence containing the match):
+    Negative Samples (Distractors to Avoid — each sample shows the sentence containing the match, plus the immediate text before and after the matched occurrence):
     {negative_samples}
 
+[CRITICAL DISAMBIGUATION RULE]
+The same reference text may appear multiple times in a single paragraph referring to DIFFERENT documents.
+Example: "As mentioned in Article 1 of the Charter and Article 1 of the Protocol."
+The first "Article 1" refers to the Charter; the second "Article 1" refers to the Protocol.
+You MUST validate ONLY the specific occurrence provided by the context strings.
+DO NOT use `re.search()`, `str.find()`, or any method that locates the first occurrence of `match_text` inside the paragraph.
+
 [LOGIC REQUIREMENTS]
-Your task is to create a function is_reference(match_text: str, sentence_text: str, paragraph_text: str) that returns a boolean. The input `match_text` is the regex-matched text found in the sentence. The `sentence_text` is a SINGLE SENTENCE extracted from a paragraph. The `paragraph_text` is the full paragraph for additional context.
+Your task is to create a function is_reference(match_text: str, sentence_text: str, paragraph_text: str, context_before: str, context_after: str) that returns a boolean.
 
-    Primary Match: Use `re` to find `match_text` in `sentence_text`. Account for OCR errors, varying whitespace, and different dash/hyphen types.
+    Primary Match: The `match_text` is the regex-matched text. `sentence_text` is the single sentence containing it. `paragraph_text` is the full paragraph.
     
-    Contextual Anchoring: Analyze the sentence and surrounding context in the paragraph for keywords that refer to {destination_title}.
+    Contextual Anchoring: Analyze `context_before` (text immediately before this specific occurrence) and `context_after` (text immediately after this specific occurrence) for keywords that refer to {destination_title}.
 
-    Negative filter: If the contextual anchoring is not working well, create a "Negative filter" using the negative samples 
+    Negative filter: If the contextual anchoring is not working well, create a "Negative filter" using the negative samples.
 
 [INPUT/OUTPUT SCHEMA]
 
-    Input: match_text (str), sentence_text (str), paragraph_text (str).
+    Input: match_text (str), sentence_text (str), paragraph_text (str), context_before (str), context_after (str).
 
     Output: True if the reference points to the target metadata, False otherwise.
 
 Write a Python function with this EXACT signature:
 
-def is_reference(match_text: str, sentence_text: str, paragraph_text: str) -> bool:
+def is_reference(match_text: str, sentence_text: str, paragraph_text: str, context_before: str, context_after: str) -> bool:
     \"\"\"Return True if match_text in sentence_text is a true reference to {destination_title} - {destination_text}.\"\"\"
 
 The function should analyze the context around the match within the sentence and paragraph to distinguish true references from false positives.
@@ -337,6 +344,25 @@ class GenerateDestinationDetectionsUseCase:
 
         return regex
 
+    @staticmethod
+    def _get_context_strings(text: str, match_start: int, match_end: int) -> tuple[str, str]:
+        match_text = text[match_start:match_end]
+
+        next_pos = text.find(match_text, match_end)
+        prev_pos = text.rfind(match_text, 0, match_start)
+
+        before_start = max(0, match_start - 100)
+        if prev_pos != -1:
+            before_start = max(before_start, prev_pos + len(match_text))
+
+        after_end = min(len(text), match_end + 100)
+        if next_pos != -1:
+            after_end = min(after_end, next_pos)
+
+        context_before = text[before_start:match_start]
+        context_after = text[match_end:after_end]
+        return context_before, context_after
+
     def _get_positive_samples(self, refs: list[Reference], regex: str) -> list[dict]:
         try:
             compiled = re.compile(regex)
@@ -346,15 +372,34 @@ class GenerateDestinationDetectionsUseCase:
         samples: list[dict] = []
         for ref in refs[:10]:
             paragraph_text = ref.segment.text if ref.segment else ""
+            if compiled and ref.character_start > 0 and ref.character_end > ref.character_start:
+                match_start = ref.character_start
+                match_end = ref.character_end
+                sentence = self._find_sentence_with_match(paragraph_text, match_start, match_end)
+                context_before, context_after = self._get_context_strings(paragraph_text, match_start, match_end)
+                samples.append(
+                    {
+                        "text": ref.text,
+                        "sentence": sentence,
+                        "paragraph_text": paragraph_text,
+                        "context_before": context_before,
+                        "context_after": context_after,
+                    }
+                )
+                continue
+
             if compiled:
                 match = compiled.search(paragraph_text)
                 if match:
                     sentence = self._find_sentence_with_match(paragraph_text, match.start(), match.end())
+                    context_before, context_after = self._get_context_strings(paragraph_text, match.start(), match.end())
                     samples.append(
                         {
                             "text": match.group("reference"),
                             "sentence": sentence,
                             "paragraph_text": paragraph_text,
+                            "context_before": context_before,
+                            "context_after": context_after,
                         }
                     )
                     continue
@@ -365,6 +410,8 @@ class GenerateDestinationDetectionsUseCase:
                     "text": ref.text,
                     "sentence": sentence,
                     "paragraph_text": paragraph_text,
+                    "context_before": "",
+                    "context_after": "",
                 }
             )
 
@@ -391,12 +438,15 @@ class GenerateDestinationDetectionsUseCase:
                 m = compiled.search(paragraph_text)
                 if m:
                     sentence = self._find_sentence_with_match(paragraph_text, m.start(), m.end())
+                    context_before, context_after = self._get_context_strings(paragraph_text, m.start(), m.end())
                     negative_samples.append(
                         {
                             "text": m.group("reference"),
                             "sentence": sentence,
                             "destination_entity_title": "Unknown",
                             "paragraph_text": paragraph_text,
+                            "context_before": context_before,
+                            "context_after": context_after,
                         }
                     )
                 if len(negative_samples) >= 10:
@@ -405,30 +455,52 @@ class GenerateDestinationDetectionsUseCase:
             pass
 
         # 2. Find false positives in other references' paragraphs
+        target_texts = {ref.text for ref in target_refs}
         other_refs = [r for r in all_references if r.id not in target_ids]
         for ref in other_refs:
             paragraph_text = ref.segment.text if ref.segment else ""
             if not paragraph_text:
                 continue
 
-            m = compiled.search(paragraph_text)
-            if m:
-                sentence = self._find_sentence_with_match(paragraph_text, m.start(), m.end())
+            if ref.text not in target_texts:
+                continue
+
+            if ref.character_start > 0 and ref.character_end > ref.character_start:
+                m_start = ref.character_start
+                m_end = ref.character_end
+                sentence = self._find_sentence_with_match(paragraph_text, m_start, m_end)
+                context_before, context_after = self._get_context_strings(paragraph_text, m_start, m_end)
                 negative_samples.append(
                     {
-                        "text": m.group("reference"),
+                        "text": ref.text,
                         "sentence": sentence,
                         "destination_entity_title": ref.destination or ref.text,
                         "paragraph_text": paragraph_text,
+                        "context_before": context_before,
+                        "context_after": context_after,
                     }
                 )
+            else:
+                m = compiled.search(paragraph_text)
+                if m:
+                    sentence = self._find_sentence_with_match(paragraph_text, m.start(), m.end())
+                    context_before, context_after = self._get_context_strings(paragraph_text, m.start(), m.end())
+                    negative_samples.append(
+                        {
+                            "text": m.group("reference"),
+                            "sentence": sentence,
+                            "destination_entity_title": ref.destination or ref.text,
+                            "paragraph_text": paragraph_text,
+                            "context_before": context_before,
+                            "context_after": context_after,
+                        }
+                    )
 
             if len(negative_samples) >= 10:
                 break
 
         # 3. Fallback: use other references' paragraphs with substring matches
         if not negative_samples:
-            target_texts = {ref.text for ref in target_refs}
             for ref in other_refs:
                 paragraph_text = ref.segment.text if ref.segment else ""
                 if not paragraph_text:
@@ -449,6 +521,8 @@ class GenerateDestinationDetectionsUseCase:
                                 "sentence": sentence,
                                 "destination_entity_title": ref.destination or ref.text,
                                 "paragraph_text": paragraph_text,
+                                "context_before": "",
+                                "context_after": "",
                             }
                         )
                         break
@@ -486,25 +560,22 @@ class GenerateDestinationDetectionsUseCase:
             if not is_reference or not callable(is_reference):
                 return False
 
-            compiled = re.compile(regex)
             true_count = 0
             for sample in positive_samples:
                 paragraph_text = sample.get("paragraph_text", "")
                 if not paragraph_text:
                     continue
 
-                match = compiled.search(paragraph_text)
-                if match:
-                    sentence = GenerateDestinationDetectionsUseCase._find_sentence_with_match(
-                        paragraph_text, match.start(), match.end()
-                    )
-                    match_text = match.group("reference")
-                    try:
-                        result = is_reference(match_text, sentence, paragraph_text)
-                        if result:
-                            true_count += 1
-                    except Exception:
-                        return False
+                match_text = sample.get("text", "")
+                sentence = sample.get("sentence", "")
+                context_before = sample.get("context_before", "")
+                context_after = sample.get("context_after", "")
+                try:
+                    result = is_reference(match_text, sentence, paragraph_text, context_before, context_after)
+                    if result:
+                        true_count += 1
+                except Exception:
+                    return False
 
             return true_count > 0
         except Exception:
@@ -518,14 +589,19 @@ class GenerateDestinationDetectionsUseCase:
         negative_samples: list[dict],
     ) -> str:
         positive_samples_str = (
-            "\n".join([f'- {{"text": "{s["text"]}", "sentence": "{s["sentence"]}"}}' for s in positive_samples])
+            "\n".join(
+                [
+                    f'- {{"text": "{s["text"]}", "sentence": "{s["sentence"]}", "context_before": "{s.get("context_before", "")}", "context_after": "{s.get("context_after", "")}"}}'
+                    for s in positive_samples
+                ]
+            )
             or "    (none available)"
         )
 
         negative_samples_str = (
             "\n".join(
                 [
-                    f'- {{"text": "{s["text"]}", "sentence": "{s["sentence"]}", "destination_entity_title": "{s["destination_entity_title"]}"}}'
+                    f'- {{"text": "{s["text"]}", "sentence": "{s["sentence"]}", "destination_entity_title": "{s["destination_entity_title"]}", "context_before": "{s.get("context_before", "")}", "context_after": "{s.get("context_after", "")}"}}'
                     for s in negative_samples
                 ]
             )

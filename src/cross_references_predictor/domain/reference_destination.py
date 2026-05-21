@@ -23,6 +23,8 @@ class ReferenceDestination(BaseModel):
         return self.type == reference.type
 
     def is_exact_match(self, reference: Reference) -> bool:
+        if reference.type == ReferenceType.REFERENCE:
+            return self.name == (reference.destination or reference.normalized_text)
         return self.name == reference.normalized_text
 
     def is_similar_entity(self, reference: Reference) -> bool:

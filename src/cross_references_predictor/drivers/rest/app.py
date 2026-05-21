@@ -253,6 +253,8 @@ async def save_reference_occurrences(request: SaveReferenceOccurrencesRequest):
                 text=occ.text,
                 destination=occ.destination,
                 segment=segment,
+                character_start=occ.character_start or 0,
+                character_end=occ.character_end or 0,
             )
         )
 

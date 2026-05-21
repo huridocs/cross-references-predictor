@@ -147,6 +147,8 @@ class ReferenceDestinationUseCase:
     def _get_group_name_for_entity(named_entity: Reference) -> str:
         if named_entity.type == ReferenceType.DATE and named_entity.normalized_text:
             return named_entity.normalized_text
+        if named_entity.type == ReferenceType.REFERENCE:
+            return named_entity.destination or named_entity.normalized_text or named_entity.text
 
         return named_entity.text
 
