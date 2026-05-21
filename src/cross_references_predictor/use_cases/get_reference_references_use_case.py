@@ -72,11 +72,7 @@ class GetReferenceReferencesUseCase:
                 scored.append((score, ref))
 
             scored.sort(key=lambda x: x[0], reverse=True)
-            best_score = scored[0][0]
-            if best_score > 0:
-                result.extend([s[1] for s in scored if s[0] == best_score])
-            else:
-                result.append(scored[0][1])
+            result.append(scored[0][1])
 
         return sorted(result, key=lambda x: x.character_start)
 
