@@ -1,3 +1,4 @@
+import os
 import time
 import unittest
 
@@ -10,7 +11,6 @@ class TestReferenceReferencesEndToEnd(unittest.TestCase):
 
     def setUp(self):
         self.namespace = f"reference_references_test_{id(self)}"
-        self.ollama_available = self._check_ollama()
 
     def tearDown(self):
         requests.post(f"{self.service_url}/delete_namespace", data={"namespace": self.namespace, "language": self.language})
@@ -41,14 +41,7 @@ class TestReferenceReferencesEndToEnd(unittest.TestCase):
             time.sleep(1)
         return False, 0, "Timed out waiting for script generation task to complete"
 
-    def _check_ollama(self) -> bool:
-        try:
-            response = requests.get(f"{self.service_url}/health/llm", timeout=120)
-            return response.json().get("status") == "ok"
-        except Exception:
-            return False
-
-    @unittest.skip("Requires real Ollama server running")
+    @unittest.skip("Requires real Ollama API KEY")
     def test_type_1_with_segment(self):
         occurrences = [
             {
@@ -86,7 +79,7 @@ class TestReferenceReferencesEndToEnd(unittest.TestCase):
         self.assertIn("references", refs_response)
         self.assertIn("destinations", refs_response)
 
-    @unittest.skip("Requires real Ollama server running")
+    @unittest.skip("Requires real Ollama API KEY")
     def test_type_2_without_segment(self):
         occurrences = [
             {
@@ -124,7 +117,7 @@ class TestReferenceReferencesEndToEnd(unittest.TestCase):
         self.assertIn("references", refs_response)
         self.assertIn("destinations", refs_response)
 
-    @unittest.skip("Requires real Ollama server running")
+    @unittest.skip("Requires real Ollama API KEY")
     def test_mixed_types(self):
         occurrences = [
             {
@@ -169,11 +162,8 @@ class TestReferenceReferencesEndToEnd(unittest.TestCase):
         self.assertIn("references", refs_response)
         self.assertIn("destinations", refs_response)
 
-    @unittest.skip("Requires real Ollama server running")
+    @unittest.skip("Requires real Ollama API KEY")
     def test_detection_scripts(self):
-        if not self.ollama_available:
-            self.skipTest("Ollama is not running")
-
         occurrences = [
             {
                 "text": "Test Ref 1",
@@ -199,11 +189,8 @@ class TestReferenceReferencesEndToEnd(unittest.TestCase):
         ref_refs = [r for r in extract_response.json().get("references", []) if r.get("type") == "REFERENCE"]
         self.assertGreater(len(ref_refs), 0)
 
-    @unittest.skip("Requires real Ollama server running")
+    @unittest.skip("Requires real Ollama API KEY")
     def test_negative_samples(self):
-        if not self.ollama_available:
-            self.skipTest("Ollama is not running")
-
         occurrences = [
             {
                 "text": "Article 5",
@@ -266,11 +253,8 @@ class TestReferenceReferencesEndToEnd(unittest.TestCase):
         ref_refs = [r for r in extract_response.json().get("references", []) if r.get("type") == "REFERENCE"]
         self.assertGreater(len(ref_refs), 0)
 
-    @unittest.skip("Requires real Ollama server running")
+    @unittest.skip("Requires real Ollama API KEY")
     def test_same_text_different_destinations(self):
-        if not self.ollama_available:
-            self.skipTest("Ollama is not running")
-
         segment_text = "As mentioned in Article 1 of the Charter and Article 1 of the Protocol."
         first_article_pos = segment_text.find("Article 1")
         second_article_pos = segment_text.find("Article 1", first_article_pos + 1)

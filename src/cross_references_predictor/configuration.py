@@ -8,11 +8,8 @@ DATA_PATH = Path(ROOT_PATH, "data")
 TITLES_TYPES = ["title", "section header"]
 SEPARATOR = " ||| "
 PDF_ANALYSIS_SERVICE_URL = os.getenv("PDF_ANALYSIS_SERVICE_URL", "http://localhost:5060")
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 DEFAULT_LLM_MODEL = "gemma4:31b-cloud"
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", DEFAULT_LLM_MODEL)
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
 
 ALL_REFERENCE_TYPES = [
     "PERSON",

@@ -13,8 +13,8 @@ services:
       - POSTGRES_DB=references_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - OLLAMA_HOST=http://localhost:11434
       - PDF_ANALYSIS_SERVICE_URL=http://localhost:5060
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     network_mode: host
     depends_on:
       - postgres
